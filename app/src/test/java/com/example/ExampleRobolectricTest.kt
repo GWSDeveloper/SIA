@@ -137,6 +137,28 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `chatgpt STT mishearing variants resolve to chatgpt not literal app name`() {
+        // Regression test: SpeechRecognizer sometimes mistranscribes "Open ChatGPT" as
+        // "Open Chat Gupt" in Hindi/Devanagari voice input. These must resolve to the
+        // canonical "chatgpt" app alias, not fall through to a literal "chat gupt" search.
+        val testCases = listOf(
+            "Open ChatGPT" to "chatgpt",
+            "Open Chat GPT" to "chatgpt",
+            "Open Chat Gupt" to "chatgpt",
+            "Chat Gupt kholo" to "chatgpt",
+            "Chatgupt open karo" to "chatgpt"
+        )
+        for ((phrase, expectedApp) in testCases) {
+            val res = ToolRegistry.resolveCommand(phrase)
+            assertTrue("Phrase '$phrase' should resolve to LocalActions", res is ToolRegistry.CommandResolution.LocalActions)
+            val actions = (res as ToolRegistry.CommandResolution.LocalActions).actions
+            assertEquals(1, actions.size)
+            assertEquals("open_app", actions[0].toolName)
+            assertEquals(expectedApp, actions[0].toolParams["app_name"])
+        }
+    }
+
+    @Test
     fun `open kardo without target forwards to AI agent`() {
         val res = ToolRegistry.resolveCommand("open kardo")
         assertTrue("open kardo must not open an app called kardo, should forward to AI agent", res is ToolRegistry.CommandResolution.NeedsAiAgent)

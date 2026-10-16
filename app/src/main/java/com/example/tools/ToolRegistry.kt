@@ -143,7 +143,15 @@ object ToolRegistry {
         "instagram" to "instagram",
         "insta" to "instagram",
         "chatgpt" to "chatgpt",
-        "chat gpt" to "chatgpt"
+        "chat gpt" to "chatgpt",
+        // Common Hindi/Devanagari-accented SpeechRecognizer mishearings of "ChatGPT".
+        // Kept as an explicit, conservative allowlist (not fuzzy matching) so we only
+        // resolve known STT mistranscriptions and never silently guess unrelated apps.
+        "chat gupt" to "chatgpt",
+        "chatgupt" to "chatgpt",
+        "chat gupta" to "chatgpt",
+        "चैट जीपीटी" to "chatgpt",
+        "चैट गुप्त" to "chatgpt"
     )
 
     private val CONVERSATIONAL_MARKERS = listOf(
