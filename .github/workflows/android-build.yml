@@ -1,0 +1,137 @@
+name: Build SIA Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+# Avoid overlapping runs on the same ref clobbering each other's artifacts.
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # The repo's committed gradle-wrapper.properties pins Gradle 9.3.1 but the
+      # wrapper jar/scripts (gradlew, gradlew.bat, gradle-wrapper.jar) are missing
+      # from the repository. Rather than fabricate a wrapper jar by hand, we let
+      # gradle/actions/setup-gradle install the real, verified Gradle 9.3.1
+      # distribution from Gradle's own servers and invoke it directly. This is
+      # the officially supported way to build a Gradle project with no local
+      # wrapper, and every binary involved is the genuine upstream artifact.
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
+          cache-read-only: false
+
+      # SIA's app/build.gradle.kts defines a "debugConfig" signingConfig that
+      # requires a debug.keystore file in the repo root. It is correctly
+      # .gitignore'd (never committed), so CI must generate one with the
+      # standard, publicly-documented Android debug keystore credentials.
+      # These are NOT secret - every Android SDK on every machine ships the
+      # exact same default debug key (alias androiddebugkey, password
+      # "android"), so recreating it here is standard practice and produces a
+      # debug APK installable on any device without the keystore being secret
+      # material.
+      - name: Generate standard Android debug keystore
+        run: |
+          keytool -genkeypair \
+            -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      # The Secrets Gradle Plugin reads .env (falling back to .env.example's
+      # placeholder values when .env is absent) and is configured with
+      # missingGoogleServicesStrategy = WARN, so the build does not require
+      # real GEMINI_API_KEY / SARVAM_API_KEY / google-services.json values to
+      # compile a debug APK. If real keys are later added as repository
+      # secrets, this step will use them instead of the placeholders -
+      # without ever printing their values to the log.
+      - name: Write .env from repository secrets (falls back to placeholders)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+        run: |
+          if [ -n "$GEMINI_API_KEY" ] || [ -n "$SARVAM_API_KEY" ]; then
+            {
+              echo "GEMINI_API_KEY=${GEMINI_API_KEY:-MY_GEMINI_API_KEY}"
+              echo "SARVAM_API_KEY=${SARVAM_API_KEY:-MY_SARVAM_API_KEY}"
+            } > .env
+            echo "Wrote .env using repository secrets where available (values not logged)."
+          else
+            echo "No GEMINI_API_KEY/SARVAM_API_KEY repository secrets configured; build will use .env.example placeholders."
+          fi
+
+      - name: Build debug APK
+        run: gradle assembleDebug --stacktrace --no-daemon
+
+      - name: Run unit tests
+        if: always()
+        run: gradle testDebugUnitTest --stacktrace --no-daemon
+        continue-on-error: true
+        id: unit_tests
+
+      - name: Locate built APK
+        if: always()
+        run: |
+          echo "Searching for generated debug APK(s):"
+          find app/build/outputs/apk -type f -name "*.apk" 2>/dev/null || echo "No APK found."
+
+      - name: Upload debug APK artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIA-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIA-unit-test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload build/diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIA-build-diagnostics
+          path: |
+            app/build/outputs/logs/
+            app/build/reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Fail job if unit tests failed
+        if: steps.unit_tests.outcome == 'failure'
+        run: |
+          echo "::warning::Unit tests failed. See the SIA-unit-test-reports artifact for details. The debug APK (if built) was still uploaded."
+          exit 1
