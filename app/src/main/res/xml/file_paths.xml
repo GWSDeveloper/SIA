@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="cache_exports" path="exports/" />
+    <files-path name="files_workspace" path="workspace/" />
+    <files-path name="files_all" path="." />
+</paths>

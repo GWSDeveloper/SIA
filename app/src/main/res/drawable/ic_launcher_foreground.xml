@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer energetic cyber ring -->
+    <path
+        android:pathData="M54,54 m-28,0 a28,28 0 1,0 56,0 a28,28 0 1,0 -56,0"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="26"
+                android:startY="26"
+                android:endX="82"
+                android:endY="82"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF00E5FF" />
+                <item android:offset="0.5" android:color="#FF7C4DFF" />
+                <item android:offset="1.0" android:color="#FFFF007F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Mid spinning ring -->
+    <path
+        android:pathData="M54,54 m-20,0 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0"
+        android:strokeWidth="2.0"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="34"
+                android:startY="74"
+                android:endX="74"
+                android:endY="34"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#8000E5FF" />
+                <item android:offset="0.5" android:color="#CCB388FF" />
+                <item android:offset="1.0" android:color="#FF00E5FF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Glowing central AI core orb -->
+    <path
+        android:pathData="M54,54 m-13,0 a13,13 0 1,0 26,0 a13,13 0 1,0 -26,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="41"
+                android:startY="41"
+                android:endX="67"
+                android:endY="67"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF00F5FF" />
+                <item android:offset="0.5" android:color="#FF7952FF" />
+                <item android:offset="1.0" android:color="#FFE040FB" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner specular highlight -->
+    <path
+        android:pathData="M54,54 m-6,-4 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0"
+        android:fillColor="#90FFFFFF" />
+
+    <!-- AI neural node accents -->
+    <path
+        android:pathData="M54,23 a3,3 0 1,0 0.1,0 Z"
+        android:fillColor="#FF00E5FF" />
+    <path
+        android:pathData="M54,85 a3,3 0 1,0 0.1,0 Z"
+        android:fillColor="#FFFF007F" />
+    <path
+        android:pathData="M23,54 a3,3 0 1,0 0.1,0 Z"
+        android:fillColor="#FF7C4DFF" />
+    <path
+        android:pathData="M85,54 a3,3 0 1,0 0.1,0 Z"
+        android:fillColor="#FF00E5FF" />
+</vector>

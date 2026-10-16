@@ -1,0 +1,6 @@
+{
+  "name": "SIA",
+  "description": "Personal Android AI Assistant by FAST with futuristic animated orb, voice & text interaction, Android actions, persistent memory, and scheduled tasks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
