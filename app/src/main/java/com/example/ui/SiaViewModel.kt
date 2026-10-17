@@ -392,7 +392,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
             // Feed real outcomes back to the model. It may request follow-up tools
             // or return a final answer; it cannot assume a failed action succeeded.
-            val outcomes = roundResults.joinToString("\n") { (call, result) ->
+            val outcomes = executionResults.joinToString("\n") { (call, result) ->
                 "Tool: ${call.toolName}; arguments: ${call.toolParams}; status: ${result.status}; result: ${result.message}"
             }
             val followUpContext = PromptContext(
@@ -424,7 +424,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val webIssue = executionResults.firstOrNull {
             it.first.toolName in setOf("web_agent", "web_search") && it.second.status != ToolResultStatus.SUCCESS
         }
-        if (webIssue != null) {
+        if (webIssue != null && executionResults.none { it.second.status == ToolResultStatus.SUCCESS }) {
             val detail = webIssue.second.message
             val reply = when {
                 detail.startsWith("TAVILY_KEY_MISSING:") -> "Web search ke liye Settings mein Tavily key add kar de."
