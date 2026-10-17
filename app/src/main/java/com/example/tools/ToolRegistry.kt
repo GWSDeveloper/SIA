@@ -335,34 +335,10 @@ object ToolRegistry {
             return SingleToolCall("set_volume", mapOf("level" to "0"))
         }
 
-        // 4. Target: Media Playback
-        // Capture named-song requests before the generic "play music" fallback.
-        // STT often emits Hindi in Devanagari, so remove common command filler in both scripts
-        // and pass only the likely title to the media agent.
-        val asksForNamedSong = (raw.contains("music") || raw.contains("song") || raw.contains("gana") ||
-            raw.contains("gaana") || raw.contains("गाना") || raw.contains("गाने") ||
-            raw.contains("म्यूजिक") || raw.contains("सॉन्ग") || raw.contains("प्ले") ||
-            raw.contains("बजाओ") || raw.contains("चलाओ")) &&
-            (raw.contains("play") || raw.contains("bajao") || raw.contains("chalao") ||
-             raw.contains("bajaa") || raw.contains("प्ले") || raw.contains("बजाओ") ||
-             raw.contains("चलाओ") || raw.contains("सुना"))
-        if (asksForNamedSong) {
-            val title = extractSongQuery(raw)
-            if (title.isNotBlank()) return SingleToolCall("media_agent", mapOf("action" to "play", "query" to title))
-        }
-        if (raw.contains("next song") || raw.contains("next track") || raw.contains("agla gana") || raw.contains("play next")) {
-            return SingleToolCall("media_agent", mapOf("action" to "next"))
-        }
-        if (raw.contains("previous song") || raw.contains("pichla gana") || raw.contains("play previous") || raw.contains("prev song")) {
-            return SingleToolCall("media_agent", mapOf("action" to "previous"))
-        }
-        if (raw.contains("pause music") || raw.contains("gana roko") || raw == "pause" || raw == "stop music") {
-            return SingleToolCall("media_agent", mapOf("action" to "pause"))
-        }
-        if (raw.contains("play music") || raw.contains("gana bajao") || raw == "play" || raw == "resume") {
-            return SingleToolCall("media_agent", mapOf("action" to "play"))
-        }
-
+        // Music requests are intentionally handled by the LLM via media_agent.
+        // Keep song/artist extraction in the tool-call parameters rather than duplicating
+        // natural-language intent parsing here; this avoids hardcoded command patterns.
+        
         // 5. Target: APK Export / Install
         if (raw.contains("download apk") || raw.contains("install on phone") || raw.contains("install on my phone") ||
             raw.contains("export apk") || raw.contains("share apk") || raw.contains("install apk") ||
