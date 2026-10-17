@@ -29,12 +29,18 @@ class LocalMusicPlayer(private val context: Context) {
                     if (queue.isEmpty()) ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "No matching local music file was found.") else startTrack(0)
                 }
                 "pause" -> {
-                    if (player?.isPlaying == true) player?.pause()
-                    ToolExecutionResult(ToolResultStatus.SUCCESS, "Local music paused.")
+                    if (player == null) ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "No SIA local track is currently playing.")
+                    else {
+                        if (player?.isPlaying == true) player?.pause()
+                        ToolExecutionResult(ToolResultStatus.SUCCESS, "Local music paused.")
+                    }
                 }
                 "stop" -> {
-                    releasePlayer()
-                    ToolExecutionResult(ToolResultStatus.SUCCESS, "Local music stopped.")
+                    if (player == null) ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "No SIA local track is currently playing.")
+                    else {
+                        releasePlayer()
+                        ToolExecutionResult(ToolResultStatus.SUCCESS, "Local music stopped.")
+                    }
                 }
                 "next" -> {
                     if (queue.isEmpty()) loadQueue("")
