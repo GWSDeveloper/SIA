@@ -492,6 +492,18 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         if (isHindiHinglish) {
             val phrases = successList.map { (call, _) ->
                 when (call.toolName) {
+                    "device_agent" -> "Haan, device setting ke liye supported action kar diya."
+                    "app_agent" -> if (call.toolParams["action"] == "close") "Chalo, home screen par aa gayi." else "${call.toolParams["app_name"] ?: "App"} khol diya."
+                    "contact_agent" -> "Call laga rahi hoon."
+                    "media_agent" -> when (call.toolParams["action"]?.lowercase(Locale.ROOT)) {
+                        "pause" -> "Music pause kar diya."
+                        "stop" -> "Music rok diya."
+                        "next" -> "Agla local gaana chala diya."
+                        "previous" -> "Pichhla local gaana chala diya."
+                        else -> "Music chala diya."
+                    }
+                    "reminder_agent" -> "Reminder set kar diya."
+                    "web_agent" -> "Web search kar liya."
                     "toggle_torch" -> {
                         val isOff = call.toolParams["state"] == "off"
                         if (isOff) "हाँ, टॉर्च बंद कर दी।" else "हाँ, टॉर्च ऑन कर दी।"
@@ -529,6 +541,12 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             val phrases = successList.map { (call, _) ->
                 when (call.toolName) {
+                    "device_agent" -> "completed the device action"
+                    "app_agent" -> if (call.toolParams["action"] == "close") "returned to the home screen" else "opened ${call.toolParams["app_name"] ?: "app"}"
+                    "contact_agent" -> "started the call"
+                    "media_agent" -> "handled local or existing media playback"
+                    "reminder_agent" -> "handled the reminder"
+                    "web_agent" -> "searched the web"
                     "toggle_torch" -> if (call.toolParams["state"] == "off") "turned off the flashlight" else "turned on the flashlight"
                     "open_app" -> "opened ${call.toolParams["app_name"] ?: "app"}"
                     "set_volume" -> "volume set to ${call.toolParams["level"] ?: "50"} percent"
