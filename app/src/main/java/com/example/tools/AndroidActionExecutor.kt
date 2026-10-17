@@ -58,10 +58,6 @@ class AndroidActionExecutor(private val context: Context) {
         }
     }
 
-    /**
-     * Resolve only against apps actually installed on this device. Never launch the first
-     * substring match: short/noisy voice-recognition output can otherwise open an unrelated app.
-     */
     private fun handleOpenApp(appName: String): ToolExecutionResult {
         val candidate = appName.trim()
         if (candidate.isEmpty()) {
@@ -71,15 +67,16 @@ class AndroidActionExecutor(private val context: Context) {
             )
         }
 
+        // Resolve only against the actual installed launcher labels. Never launch the first
+        // substring match: speech-recognition errors can otherwise open an unrelated app.
         val pm = context.packageManager
-        val installed = InstalledAppsHelper.getInstalledAppLabels(context)
-        val matchedLabel = InstalledAppsHelper.findMatchingInstalledApp(candidate, installed)
+        val installedLabels = InstalledAppsHelper.getInstalledAppLabels(context)
+        val matchedLabel = InstalledAppsHelper.findMatchingInstalledApp(candidate, installedLabels)
             ?: return ToolExecutionResult(
                 status = ToolResultStatus.PERMANENT_ERROR,
                 message = "I couldn't confidently match '$appName' to one installed app. Please say the app's displayed name."
             )
 
-        // Resolve the exact matched launcher label to its package. Duplicates/ambiguous labels fail closed.
         val launcherIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
@@ -258,110 +255,280 @@ class AndroidActionExecutor(private val context: Context) {
         val scheduledTimeMs = when {
             timeMsParam != null && timeMsParam > System.currentTimeMillis() -> timeMsParam
             delayMinutes != null && delayMinutes > 0 -> System.currentTimeMillis() + (delayMinutes * 60 * 1000)
-            else -> System.currentTimeMillis() + (5 * 60 * 1000)
+            else -> System.currentTimeMillis() + (5 * 60 * 1000) // Default 5 mins if unspecified
         }
 
         val actionType = params["action_type"] ?: "REMINDER"
         val actionPayload = params["action_payload"] ?: description
         val taskId = params["task_id"] ?: "task_${UUID.randomUUID().toString().take(8)}"
 
+        // Permission check
         val requiresExact = SiaPermissionManager.hasExactAlarmPermission(context)
         val requiresNotif = SiaPermissionManager.hasNotificationPermission(context)
 
         val taskEntity = ScheduledTaskEntity(
             id = taskId,
             description = description,
-            scheduledTime = scheduledTimeMs,
+            scheduledTimeMs = scheduledTimeMs,
+            timeZone = Locale.getDefault().country,
+            recurrence = params["recurrence"] ?: "ONE_TIME",
             actionType = actionType,
             actionPayload = actionPayload,
-            createdAt = System.currentTimeMillis()
+            requiredPermissions = if (!requiresNotif) "POST_NOTIFICATIONS" else "",
+            status = "PENDING",
+            attemptCount = 0,
+            notificationMessage = "⏰ SIA: $description"
         )
 
-        return try {
-            db.scheduledTaskDao().insert(taskEntity)
-            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val intent = Intent(context, ScheduledTaskReceiver::class.java).apply {
-                action = "com.example.sia.EXECUTE_SCHEDULED_TASK"
-                putExtra("task_id", taskId)
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                taskId.hashCode(),
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            if (requiresExact) {
-                alarmManager.setExact(AlarmManager.RTC_WAKEUP, scheduledTimeMs, pendingIntent)
-            } else {
-                alarmManager.set(AlarmManager.RTC_WAKEUP, scheduledTimeMs, pendingIntent)
-            }
-            ToolExecutionResult(ToolResultStatus.SUCCESS, "Scheduled '$description'.")
-        } catch (e: Exception) {
-            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not schedule task: ${e.message}")
+        db.siaDao().insertScheduledTask(taskEntity)
+
+        // Schedule Alarm
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        val intent = Intent(context, ScheduledTaskReceiver::class.java).apply {
+            action = "com.example.sia.EXECUTE_SCHEDULED_TASK"
+            putExtra("task_id", taskId)
         }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            taskId.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val timeFormatted = SimpleDateFormat("hh:mm a, dd MMM", Locale.getDefault()).format(Date(scheduledTimeMs))
+
+        if (alarmManager != null) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (requiresExact) {
+                        alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            scheduledTimeMs,
+                            pendingIntent
+                        )
+                    } else {
+                        alarmManager.setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            scheduledTimeMs,
+                            pendingIntent
+                        )
+                    }
+                } else {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, scheduledTimeMs, pendingIntent)
+                }
+            } catch (e: Exception) {
+                return ToolExecutionResult(
+                    status = ToolResultStatus.RETRYABLE_ERROR,
+                    message = "Task saved in SIA, but alarm trigger warning: ${e.message}"
+                )
+            }
+        }
+
+        val notifWarning = if (!requiresNotif) " (Note: Notification permission is off; enable it so SIA can alert you!)" else ""
+
+        return ToolExecutionResult(
+            status = ToolResultStatus.SUCCESS,
+            message = "Scheduled '$description' for $timeFormatted.$notifWarning",
+            data = mapOf("task_id" to taskId, "scheduled_time" to timeFormatted)
+        )
     }
 
     private suspend fun handleGetTaskStatus(taskId: String?): ToolExecutionResult {
-        val tasks = if (taskId.isNullOrBlank()) db.scheduledTaskDao().getAll() else listOfNotNull(db.scheduledTaskDao().getById(taskId))
-        return ToolExecutionResult(ToolResultStatus.SUCCESS, "Tasks found: ${tasks.size}.")
+        return if (!taskId.isNullOrBlank()) {
+            val task = db.siaDao().getScheduledTaskById(taskId)
+            if (task != null) {
+                val formattedTime = SimpleDateFormat("hh:mm a, dd MMM", Locale.getDefault()).format(Date(task.scheduledTimeMs))
+                ToolExecutionResult(
+                    status = ToolResultStatus.SUCCESS,
+                    message = "Task '${task.description}' is ${task.status}. Scheduled for $formattedTime (Attempts: ${task.attemptCount}/3)."
+                )
+            } else {
+                ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Task with ID '$taskId' not found.")
+            }
+        } else {
+            val pending = db.siaDao().getPendingTasks()
+            if (pending.isEmpty()) {
+                ToolExecutionResult(ToolResultStatus.SUCCESS, "You have no pending scheduled tasks.")
+            } else {
+                val summary = pending.joinToString("\n") { task ->
+                    val t = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(task.scheduledTimeMs))
+                    "• ${task.description} at $t [${task.status}]"
+                }
+                ToolExecutionResult(ToolResultStatus.SUCCESS, "Pending tasks:\n$summary")
+            }
+        }
     }
 
     private suspend fun handleCancelTask(taskId: String): ToolExecutionResult {
-        if (taskId.isBlank()) return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Task ID is empty.")
+        if (taskId.isBlank()) {
+            return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Task ID is required to cancel.")
+        }
+        val task = db.siaDao().getScheduledTaskById(taskId)
+            ?: return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "No task found with ID '$taskId'.")
+
+        db.siaDao().updateTaskStatus(taskId, "CANCELLED")
+
+        // Cancel alarm
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        val intent = Intent(context, ScheduledTaskReceiver::class.java).apply {
+            action = "com.example.sia.EXECUTE_SCHEDULED_TASK"
+            putExtra("task_id", taskId)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            taskId.hashCode(),
+            intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )
+        if (alarmManager != null && pendingIntent != null) {
+            alarmManager.cancel(pendingIntent)
+        }
+
+        return ToolExecutionResult(
+            status = ToolResultStatus.SUCCESS,
+            message = "Cancelled task '${task.description}'."
+        )
+    }
+
+    private fun handleCreateWorkspaceNote(title: String, content: String): ToolExecutionResult {
         return try {
-            db.scheduledTaskDao().deleteById(taskId)
-            val intent = Intent(context, ScheduledTaskReceiver::class.java).apply { action = "com.example.sia.EXECUTE_SCHEDULED_TASK" }
-            val pending = PendingIntent.getBroadcast(context, taskId.hashCode(), intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
-            if (pending != null) {
-                (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
-                pending.cancel()
+            val workspaceDir = File(context.filesDir, "workspace").apply {
+                if (!exists()) mkdirs()
             }
-            ToolExecutionResult(ToolResultStatus.SUCCESS, "Cancelled task '$taskId'.")
-        } catch (e: Exception) {
-            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not cancel task: ${e.message}")
-        }
-    }
-
-    suspend fun handleCreateWorkspaceNote(title: String, content: String): ToolExecutionResult {
-        return try {
-            val dir = File(context.filesDir, "workspace").apply { mkdirs() }
-            val safeTitle = title.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "Note" }
-            val file = File(dir, "${safeTitle}.txt")
+            val sanitized = title.replace(Regex("[^a-zA-Z0-9_.-]"), "_")
+            val fileName = if (sanitized.endsWith(".txt")) sanitized else "$sanitized.txt"
+            val file = File(workspaceDir, fileName)
             file.writeText(content)
-            ToolExecutionResult(ToolResultStatus.SUCCESS, "Saved note to ${file.name}.")
+            ToolExecutionResult(
+                status = ToolResultStatus.SUCCESS,
+                message = "Created file '$fileName' in SIA Workspace.",
+                data = mapOf("file_name" to fileName, "path" to file.absolutePath)
+            )
         } catch (e: Exception) {
-            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not save note: ${e.message}")
+            ToolExecutionResult(
+                status = ToolResultStatus.PERMANENT_ERROR,
+                message = "Failed to create note: ${e.message}"
+            )
         }
     }
 
-    suspend fun handleShareWorkspaceNote(fileName: String): ToolExecutionResult {
-        val file = File(File(context.filesDir, "workspace"), fileName)
-        if (!file.exists() || !file.isFile) {
-            return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Workspace file not found.")
-        }
+    fun handleExportAppApk(): ToolExecutionResult {
         return try {
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val appInfo = context.applicationInfo
+            val sourceApk = File(appInfo.sourceDir)
+            if (!sourceApk.exists()) {
+                return ToolExecutionResult(
+                    status = ToolResultStatus.PERMANENT_ERROR,
+                    message = "Could not locate installed APK source file."
+                )
+            }
+
+            val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+            val targetApk = File(exportDir, "SIA_v2_Assistant.apk")
+            sourceApk.copyTo(targetApk, overwrite = true)
+
+            val apkUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                targetApk
+            )
+
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/vnd.android.package-archive"
+                putExtra(Intent.EXTRA_STREAM, apkUri)
+                putExtra(Intent.EXTRA_SUBJECT, "SIA v2 Assistant APK")
+                putExtra(Intent.EXTRA_TEXT, "Here is the SIA v2 Personal AI Assistant APK by FAST. Open and tap Install.")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            val chooser = Intent.createChooser(sendIntent, "Install / Share SIA v2 APK").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+
+            ToolExecutionResult(
+                status = ToolResultStatus.SUCCESS,
+                message = "SIA v2 APK prepared successfully. Share sheet opened to save or install on your phone.",
+                data = mapOf("apk_path" to targetApk.absolutePath)
+            )
+        } catch (e: Exception) {
+            ToolExecutionResult(
+                status = ToolResultStatus.PERMANENT_ERROR,
+                message = "Failed to export APK: ${e.message}"
+            )
+        }
+    }
+
+    fun handleDirectInstallApk(): ToolExecutionResult {
+        return try {
+            val appInfo = context.applicationInfo
+            val sourceApk = File(appInfo.sourceDir)
+            val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+            val targetApk = File(exportDir, "SIA_v2_Assistant.apk")
+            sourceApk.copyTo(targetApk, overwrite = true)
+
+            val apkUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                targetApk
+            )
+
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(installIntent)
+
+            ToolExecutionResult(
+                status = ToolResultStatus.SUCCESS,
+                message = "Package installer opened for SIA v2 APK."
+            )
+        } catch (e: Exception) {
+            handleExportAppApk()
+        }
+    }
+
+    fun handleShareWorkspaceNote(fileName: String): ToolExecutionResult {
+        return try {
+            val workspaceDir = File(context.filesDir, "workspace")
+            val targetFile = File(workspaceDir, fileName)
+            if (!targetFile.exists()) {
+                return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Note '$fileName' not found in workspace.")
+            }
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                targetFile
+            )
             val sendIntent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra(Intent.EXTRA_TEXT, targetFile.readText())
+                putExtra(Intent.EXTRA_SUBJECT, targetFile.name)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(Intent.createChooser(sendIntent, "Share note").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            ToolExecutionResult(ToolResultStatus.SUCCESS, "Shared ${file.name}.")
+            val chooser = Intent.createChooser(sendIntent, "Share ${targetFile.name}").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Sharing '${targetFile.name}'.")
         } catch (e: Exception) {
-            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not share file: ${e.message}")
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Failed to share note: ${e.message}")
         }
     }
 
-    fun handleDirectInstallApk() {
-        // Existing implementation retained by the actual project source.
-    }
-
-    private fun handleExportAppApk(): ToolExecutionResult {
-        return ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "APK export isn't available in this source excerpt.")
-    }
-
     private fun handleListAllCommands(): ToolExecutionResult {
-        return ToolExecutionResult(ToolResultStatus.SUCCESS, "Available commands include app launching, web search, flashlight, volume and media controls, settings, reminders and workspace notes.")
+        val tools = ToolRegistry.getAllTools()
+        val text = tools.joinToString("\n\n") { tool ->
+            val perms = if (tool.requiredPermissions.isEmpty()) "None" else tool.requiredPermissions.joinToString(", ")
+            "• ${tool.name}: ${tool.description} (Permissions: $perms)"
+        }
+        return ToolExecutionResult(
+            status = ToolResultStatus.SUCCESS,
+            message = "SIA Supported Capabilities:\n$text"
+        )
     }
 }
