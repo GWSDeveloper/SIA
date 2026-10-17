@@ -479,11 +479,19 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val successResults = executionResults.filter { it.second.status == ToolResultStatus.SUCCESS }
         val failedResults = executionResults.filter { it.second.status != ToolResultStatus.SUCCESS }
 
+        val hasNamedMusicPlay = executionResults.any { (call, _) ->
+            call.toolName == "media_agent" &&
+                call.toolParams["action"]?.lowercase(Locale.ROOT) in setOf("play", "resume") &&
+                !call.toolParams["query"].isNullOrBlank()
+        }
         val hasWebSearch = executionResults.any { it.first.toolName in setOf("web_agent", "web_search") }
         val genericWebAcknowledgement = finalModelText.contains("web search kar liya", ignoreCase = true) ||
             finalModelText.contains("search complete", ignoreCase = true) ||
             finalModelText.contains("search kar li", ignoreCase = true)
-        val spokenConfirmation: String = if (hasWebSearch && genericWebAcknowledgement) {
+        val spokenConfirmation: String = if (failedResults.isEmpty() && hasNamedMusicPlay) {
+            // Playback confirmation must come from the executor's actual track result, not the LLM.
+            synthesizeSuccessConfirmation(successResults, isHindiHinglish)
+        } else if (hasWebSearch && genericWebAcknowledgement) {
             if (isHindiHinglish) {
                 "Search results mil gaye, lekin main unse tumhare sawaal ka reliable jawab verify nahi kar paayi. Main guess nahi karungi."
             } else {
