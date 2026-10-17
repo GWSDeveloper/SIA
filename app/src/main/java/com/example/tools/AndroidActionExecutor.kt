@@ -30,12 +30,20 @@ class AndroidActionExecutor(private val context: Context) {
 
     private val db = SiaDatabase.getDatabase(context)
     private var isTorchOn = false
+    private val webSearchAgent = WebSearchAgent(context)
+    private val contactAgent = ContactAgent(context)
+    private val localMusicPlayer = LocalMusicPlayer(context)
 
     suspend fun executeTool(name: String, params: Map<String, String>): ToolExecutionResult {
         return withContext(Dispatchers.IO) {
             when (name) {
+                "device_agent" -> handleDeviceAgent(params)
+                "app_agent" -> handleAppAgent(params)
+                "contact_agent" -> contactAgent.callContact(params["name"] ?: "")
+                "web_agent", "web_search" -> webSearchAgent.search(params["query"] ?: "")
+                "media_agent" -> handleMediaAgent(params)
+                "reminder_agent" -> handleReminderAgent(params)
                 "open_app" -> handleOpenApp(params["app_name"] ?: "")
-                "web_search" -> handleWebSearch(params["query"] ?: "")
                 "toggle_torch" -> handleToggleTorch(params["state"] ?: "toggle")
                 "control_media" -> handleControlMedia(params["action"] ?: "play_pause")
                 "set_volume" -> handleSetVolume(params["level"]?.toIntOrNull() ?: 50)
@@ -55,6 +63,65 @@ class AndroidActionExecutor(private val context: Context) {
                     message = "Command '$name' is not recognized or supported by SIA on this device."
                 )
             }
+        }
+    }
+
+    private fun handleDeviceAgent(params: Map<String, String>): ToolExecutionResult {
+        val action = params["action"]?.lowercase(Locale.ROOT).orEmpty()
+        val state = params["state"]?.lowercase(Locale.ROOT).orEmpty()
+        return when (action) {
+            "torch", "torch_on" -> handleToggleTorch(if (action == "torch_on") "on" else state.ifBlank { "toggle" })
+            "torch_off" -> handleToggleTorch("off")
+            "volume", "set_volume" -> handleSetVolume(params["level"]?.toIntOrNull() ?: 50)
+            "wifi", "bluetooth", "mobile_data", "hotspot", "brightness" -> {
+                val setting = when (action) {
+                    "wifi" -> "wifi"
+                    "bluetooth" -> "bluetooth"
+                    "hotspot" -> "hotspot"
+                    "mobile_data" -> "mobile_data"
+                    else -> "display"
+                }
+                val result = handleOpenSettings(setting)
+                if (result.status == ToolResultStatus.SUCCESS) ToolExecutionResult(
+                    ToolResultStatus.USER_CONFIRMATION_REQUIRED,
+                    "Android opened the $setting settings screen. The user must complete this change there; do not claim the setting was toggled."
+                ) else result
+            }
+            else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "This device action is not supported.")
+        }
+    }
+
+    private fun handleAppAgent(params: Map<String, String>): ToolExecutionResult {
+        return when (params["action"]?.lowercase(Locale.ROOT)) {
+            "open" -> handleOpenApp(params["app_name"] ?: "")
+            "close", "home" -> try {
+                val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                ToolExecutionResult(ToolResultStatus.SUCCESS, "Returned to the home screen. Android does not allow SIA to force-stop arbitrary apps.")
+            } catch (_: Exception) {
+                ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not return to the home screen.")
+            }
+            else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Use app_agent with action open or close.")
+        }
+    }
+
+    private fun handleMediaAgent(params: Map<String, String>): ToolExecutionResult {
+        val action = params["action"]?.lowercase(Locale.ROOT).orEmpty()
+        return when (action) {
+            "control_existing" -> handleControlMedia(params["media_action"] ?: "play_pause")
+            "play", "resume", "pause", "stop", "next", "previous" ->
+                localMusicPlayer.control(action, params["query"] ?: "")
+            else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Use media_agent with a supported playback action.")
+        }
+    }
+
+    private suspend fun handleReminderAgent(params: Map<String, String>): ToolExecutionResult {
+        return when (params["action"]?.lowercase(Locale.ROOT)) {
+            "create" -> handleScheduleTask(params)
+            "list", "status" -> handleGetTaskStatus(params["task_id"])
+            "cancel" -> handleCancelTask(params["task_id"] ?: "")
+            else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Use reminder_agent with create, list, or cancel.")
         }
     }
 
@@ -222,6 +289,8 @@ class AndroidActionExecutor(private val context: Context) {
         val action = when (type.lowercase(Locale.ROOT)) {
             "wifi" -> Settings.ACTION_WIFI_SETTINGS
             "bluetooth" -> Settings.ACTION_BLUETOOTH_SETTINGS
+            "hotspot" -> "android.settings.TETHER_SETTINGS"
+            "mobile_data" -> Settings.ACTION_NETWORK_OPERATOR_SETTINGS
             "sound", "volume" -> Settings.ACTION_SOUND_SETTINGS
             "display" -> Settings.ACTION_DISPLAY_SETTINGS
             "apps", "application" -> Settings.ACTION_APPLICATION_SETTINGS
