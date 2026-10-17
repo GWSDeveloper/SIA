@@ -610,7 +610,7 @@ class AndroidActionExecutor(private val context: Context) {
     }
 
     private fun handleListAllCommands(): ToolExecutionResult {
-        val tools = ToolRegistry.getAllTools()
+        val tools = ToolRegistry.getAgentTools()
         val text = tools.joinToString("\n\n") { tool ->
             val perms = if (tool.requiredPermissions.isEmpty()) "None" else tool.requiredPermissions.joinToString(", ")
             "• ${tool.name}: ${tool.description} (Permissions: $perms)"
