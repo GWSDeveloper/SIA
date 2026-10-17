@@ -29,6 +29,7 @@ object ToolRegistry {
         )),
         ToolDefinition("media_agent", "Play and control music stored locally on this phone; can also send media keys to an existing media app.", listOf(
             ToolParameter("action", "string", "play, pause, resume, stop, next, previous, or control_existing"),
+            ToolParameter("media_action", "string", "Existing app media key: play_pause, play, pause, next, previous", false),
             ToolParameter("query", "string", "Optional song title or artist to match in local files", false)
         )),
         ToolDefinition("reminder_agent", "Create, inspect, or cancel persistent reminders.", listOf(
