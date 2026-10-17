@@ -41,6 +41,8 @@ class GeminiProvider(
                     }
                     append("\nIf the user's intent requires actions, you can invoke one or multiple tools using this JSON format at the start of your response:")
                     append("\n```tool_calls\n[{\"tool\": \"tool_name\", \"params\": {\"param_name\": \"value\"}}]\n```")
+                    append("\nMusic rule: if the user names a specific song or artist, call media_agent with action=play and put ONLY the cleaned song title/artist in query. Never omit query for a named song, never substitute a random/current song when a requested title does not match, and report no match honestly.")
+                    append("\nWeb rule: for factual/current questions call web_agent with action=search and query containing the actual question. If the tool fails, report the diagnostic returned by the tool in simple language; do not pretend search succeeded.")
                     append("\nFollowed by a concise, friendly spoken response in Hindi/Hinglish/English depending on user context. Do not include raw json in your spoken response.")
                 }
 
