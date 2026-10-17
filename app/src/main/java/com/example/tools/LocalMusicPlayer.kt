@@ -62,7 +62,7 @@ class LocalMusicPlayer(private val context: Context) {
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST)
         val loaded = mutableListOf<Track>()
-        context.contentResolver.query(collection, projection, "\${MediaStore.Audio.Media.IS_MUSIC} != 0", null, "\${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
+        context.contentResolver.query(collection, projection, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC")?.use { cursor ->
             val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
@@ -89,7 +89,7 @@ class LocalMusicPlayer(private val context: Context) {
             prepare()
             start()
         }
-        return ToolExecutionResult(ToolResultStatus.SUCCESS, "Now playing local track: \${track.title} by \${track.artist}.")
+        return ToolExecutionResult(ToolResultStatus.SUCCESS, "Now playing local track: ${track.title} by ${track.artist}.")
     }
 
     private fun releasePlayer() {
