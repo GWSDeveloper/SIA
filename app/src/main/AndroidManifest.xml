@@ -71,6 +71,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Enables access to active media sessions after the user explicitly grants Notification Access. -->
+        <service
+            android:name=".tools.SiaMediaNotificationListener"
+            android:label="SIA Media Controls"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Service for persistent notification and floating assistant -->
         <service
             android:name=".service.SiaFloatingService"
