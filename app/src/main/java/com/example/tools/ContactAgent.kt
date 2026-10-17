@@ -42,10 +42,10 @@ class ContactAgent(private val context: Context) {
         return try {
             val number = match.second
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
-                context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(number)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                context.startActivity(Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 ToolExecutionResult(ToolResultStatus.SUCCESS, "Call started for ${match.first}.")
             } else {
-                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(number)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 ToolExecutionResult(ToolResultStatus.USER_CONFIRMATION_REQUIRED, "CALL_PERMISSION_REQUIRED: Opened the dialer for ${match.first}; tap Call to continue.")
             }
         } catch (_: Exception) {
