@@ -60,6 +60,27 @@ class ContactAgent(private val context: Context) {
         normalize(value)
     }
 
+    private fun transliterated(value: String): String = try {
+        normalize(Transliterator.getInstance("Devanagari-Latin; Latin-ASCII").transliterate(value))
+    } catch (_: Exception) { normalize(value) }
+
+    private fun phoneticNormalize(value: String): String = transliterated(value)
+        .replace("simh", "singh")
+        .replace("sinh", "singh")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+
+    private fun closeNameMatch(left: String, right: String): Boolean {
+        val a = left.split(" ").filter { it.isNotBlank() }
+        val b = right.split(" ").filter { it.isNotBlank() }
+        if (a.size != b.size || a.isEmpty()) return false
+        return a.zip(b).all { (x, y) ->
+            val xx = x.replace("simh", "singh").replace("sinh", "singh")
+            val yy = y.replace("simh", "singh").replace("sinh", "singh")
+            xx == yy || (xx.length >= 4 && yy.length >= 4 && (xx.startsWith(yy.take(4)) || yy.startsWith(xx.take(4))))
+        }
+    }
+
     private fun normalize(value: String): String = Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
         .replace(Regex("\\p{Mn}+"), "")
         .lowercase(Locale.ROOT)
