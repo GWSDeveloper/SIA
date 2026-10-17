@@ -479,7 +479,17 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val successResults = executionResults.filter { it.second.status == ToolResultStatus.SUCCESS }
         val failedResults = executionResults.filter { it.second.status != ToolResultStatus.SUCCESS }
 
-        val spokenConfirmation: String = if (failedResults.isEmpty()) {
+        val hasWebSearch = executionResults.any { it.first.toolName in setOf("web_agent", "web_search") }
+        val genericWebAcknowledgement = finalModelText.contains("web search kar liya", ignoreCase = true) ||
+            finalModelText.contains("search complete", ignoreCase = true) ||
+            finalModelText.contains("search kar li", ignoreCase = true)
+        val spokenConfirmation: String = if (hasWebSearch && genericWebAcknowledgement) {
+            if (isHindiHinglish) {
+                "Search results mil gaye, lekin main unse tumhare sawaal ka reliable jawab verify nahi kar paayi. Main guess nahi karungi."
+            } else {
+                "I retrieved search results, but couldn't verify a reliable answer to your question from them. I won't guess."
+            }
+        } else if (failedResults.isEmpty()) {
             if (!finalModelText.isNullOrBlank() && !finalModelText.contains("```") && !finalModelText.contains("{")) {
                 finalModelText
             } else {
@@ -567,7 +577,13 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                         "stop" -> "Music rok diya."
                         "next" -> "Agla local gaana chala diya."
                         "previous" -> "Pichhla local gaana chala diya."
-                        else -> "Music chala diya."
+                        "play", "resume" -> {
+                            val actual = successList.firstOrNull { it.first == call }?.second?.message.orEmpty()
+                            val track = Regex("""Now playing local track: (.+?)\.""").find(actual)?.groupValues?.getOrNull(1)
+                            if (track != null) "\"$track\" play kar diya hai."
+                            else "Music playback ka result verify nahi ho paaya."
+                        }
+                        else -> "Music playback control complete hua."
                     }
                     "reminder_agent" -> "Reminder laga diya."
                     "web_agent" -> "Web search kar liya."
