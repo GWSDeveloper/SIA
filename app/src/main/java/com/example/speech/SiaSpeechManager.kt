@@ -414,10 +414,12 @@ class SiaSpeechManager(
         }
 
         val langPref = prefs.getLanguagePreference()
+        // Hinglish defaults to en-IN so speech results are more likely to be Roman text.
+        // Explicit Hindi mode remains hi-IN; explicit English mode remains en-IN.
         val primaryLang = when {
-            langPref.contains("Hindi", ignoreCase = true) -> "hi-IN"
-            langPref.contains("English", ignoreCase = true) -> "en-IN"
-            else -> "hi-IN"
+            langPref.equals("Hindi", ignoreCase = true) -> "hi-IN"
+            langPref.equals("English", ignoreCase = true) -> "en-IN"
+            else -> "en-IN"
         }
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -681,30 +683,36 @@ class SiaSpeechManager(
             } catch (_: Exception) {}
         } else {
             try {
-                val systemVoices = engine.voices
-                if (systemVoices != null && systemVoices.isNotEmpty()) {
-                    if (preferHindi) {
-                        val hiVoice = systemVoices.firstOrNull { it.locale.language.equals("hi", ignoreCase = true) }
-                        if (hiVoice != null) {
-                            engine.voice = hiVoice
-                            engine.language = hiVoice.locale
-                        } else {
-                            val enInVoice = systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) && it.locale.country.equals("IN", ignoreCase = true) }
-                            if (enInVoice != null) {
-                                engine.voice = enInVoice
-                                engine.language = enInVoice.locale
-                            }
-                        }
-                    } else {
-                        val enInVoice = systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) && it.locale.country.equals("IN", ignoreCase = true) }
-                            ?: systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) }
-                        if (enInVoice != null) {
-                            engine.voice = enInVoice
-                            engine.language = enInVoice.locale
+                val systemVoices = engine.voices.orEmpty()
+                if (systemVoices.isNotEmpty()) {
+                    val hindiVoices = systemVoices.filter { it.locale.language.equals("hi", ignoreCase = true) }
+                    val femaleHindiVoices = hindiVoices.filter { detectGenuineVoiceGender(it) == "Female" }
+                    val candidates = when {
+                        femaleHindiVoices.isNotEmpty() -> femaleHindiVoices
+                        hindiVoices.isNotEmpty() -> hindiVoices
+                        else -> systemVoices.filter {
+                            it.locale.language.equals("en", ignoreCase = true) &&
+                                it.locale.country.equals("IN", ignoreCase = true)
                         }
                     }
+                    val bestVoice = candidates.sortedWith(
+                        compareByDescending<Voice> { it.quality >= Voice.QUALITY_VERY_HIGH }
+                            .thenByDescending { it.quality >= Voice.QUALITY_HIGH }
+                            .thenByDescending { it.isNetworkConnectionRequired }
+                            .thenByDescending { it.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) != true }
+                    ).firstOrNull()
+                    if (bestVoice != null) {
+                        engine.voice = bestVoice
+                        engine.language = bestVoice.locale
+                    } else {
+                        engine.setLanguage(Locale.forLanguageTag("hi-IN"))
+                    }
+                } else {
+                    engine.setLanguage(Locale.forLanguageTag("hi-IN"))
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                try { engine.setLanguage(Locale.forLanguageTag("hi-IN")) } catch (_: Exception) {}
+            }
         }
 
         engine.setPitch(prefs.getSpeechPitch())
