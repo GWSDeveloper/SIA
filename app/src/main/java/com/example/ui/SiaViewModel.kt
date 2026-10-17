@@ -454,7 +454,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val contactIssue = executionResults.firstOrNull {
             it.first.toolName == "contact_agent" && it.second.status != ToolResultStatus.SUCCESS
         }
-        if (contactIssue != null) {
+        if (contactIssue != null && executionResults.none { it.second.status == ToolResultStatus.SUCCESS }) {
             val detail = contactIssue.second.message
             val clarification = if (detail.startsWith("AMBIGUOUS_CONTACTS:")) {
                 val context = PromptContext(
