@@ -345,6 +345,66 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             executionResults.add(call to result)
         }
 
+        // A successful web search must be synthesized into an actual answer, not a generic
+        // "search complete" confirmation. The summarization pass has no tools to avoid loops.
+        val webResult = executionResults.firstOrNull {
+            it.first.toolName in setOf("web_agent", "web_search") && it.second.status == ToolResultStatus.SUCCESS
+        }
+        if (webResult != null) {
+            val resultText = webResult.second.message
+            val recent = dao.getRecentMessages(8).reversed().map {
+                PromptMessage(role = if (it.sender == "user") "user" else "assistant", content = it.text)
+            }
+            val answerContext = PromptContext(
+                systemPrompt = "You are SIA, a friendly female assistant. Answer the user's question using only the retrieved web search results below. Be concise, natural, and accurate. Include useful source URLs. If the results do not support an answer, say so. Do not call tools.",
+                permanentMemory = memoryManager.getPermanentMemoryText(),
+                rollingSummary = memoryManager.getRollingSummaryText(),
+                recentMessages = recent,
+                currentUserMessage = "User's original request: $originalUserText\n\nRetrieved web search results:\n$resultText\n\nGive the user a natural answer with relevant source URLs.",
+                availableTools = emptyList()
+            )
+            val summary = ProviderFactory.createProvider(getApplication()).generateResponse(answerContext)
+            val reply = if (summary.isSuccess && summary.getOrThrow().toolCalls.isEmpty() && summary.getOrThrow().textReply.isNotBlank()) {
+                summary.getOrThrow().textReply
+            } else if (isHindiOrHinglish(originalUserText)) {
+                "Search results mil gaye, lekin unka summary abhi nahi bana paayi. Ek baar phir poochh le."
+            } else {
+                "I found search results, but couldn't summarize them just now. Please try once more."
+            }
+            handleConversationalReply(reply, isFromVoice)
+            return
+        }
+
+        // Surface ambiguous contact matches as a clarification, without exposing technical errors.
+        val contactIssue = executionResults.firstOrNull {
+            it.first.toolName == "contact_agent" && it.second.status != ToolResultStatus.SUCCESS
+        }
+        if (contactIssue != null) {
+            val detail = contactIssue.second.message
+            val clarification = if (detail.startsWith("AMBIGUOUS_CONTACTS:")) {
+                val context = PromptContext(
+                    systemPrompt = "You are SIA, a casual, friendly female assistant. Ask the user which exact contact/number they mean using the provided options. Do not call anyone. Keep it brief.",
+                    permanentMemory = "",
+                    rollingSummary = "",
+                    recentMessages = emptyList(),
+                    currentUserMessage = detail,
+                    availableTools = emptyList()
+                )
+                val phrased = ProviderFactory.createProvider(getApplication()).generateResponse(context)
+                if (phrased.isSuccess && phrased.getOrThrow().toolCalls.isEmpty() && phrased.getOrThrow().textReply.isNotBlank()) phrased.getOrThrow().textReply
+                else "Is naam ke multiple numbers mile hain. Kisko call karun? " + detail.substringAfter("Ask which one to call: ")
+            } else when {
+                detail.startsWith("CALL_PERMISSION_REQUIRED:") -> "Number dialer mein khol diya hai. Call karne ke liye bas Call button daba dena."
+                detail.startsWith("CONTACT_PERMISSION_REQUIRED:") -> "Contacts access allow kar de, phir main contact dhoondh kar call laga dungi."
+                detail.startsWith("MUSIC_PERMISSION_REQUIRED:") -> "Local music chalane ke liye phone ki audio permission allow kar de."
+                detail.startsWith("TAVILY_KEY_MISSING:") -> "Web search ke liye Settings mein Tavily API key add kar de."
+                isHindiOrHinglish(originalUserText) -> "Ye kaam abhi nahi ho paaya. Ek baar permission ya settings check kar le."
+                else -> "I couldn't complete that action. Please check the required permission or setting."
+            }
+            handleConversationalReply(clarification, isFromVoice)
+            return
+        }
+
         // Determine language style from original query
         val isHindiHinglish = isHindiOrHinglish(originalUserText) || preferences.getLanguagePreference().contains("Hindi") || preferences.getLanguagePreference().contains("Hinglish")
 
@@ -495,11 +555,10 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         isHindiHinglish: Boolean
     ): String {
         val succText = successList.joinToString(", ") { formatHumanReadableActionBadge(it.first, it.second) }
-        val failText = failedList.joinToString(", ") { "${it.first.toolName} (${it.second.message})" }
         return if (isHindiHinglish) {
-            "$succText पूरा हो गया, लेकिन कुछ में समस्या आई: $failText"
+            "$succText हो गया, लेकिन एक काम पूरा नहीं हो पाया।"
         } else {
-            "$succText completed, but $failText failed."
+            "$succText completed, but one action could not be completed."
         }
     }
 
@@ -507,11 +566,16 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         failedList: List<Pair<SingleToolCall, ToolExecutionResult>>,
         isHindiHinglish: Boolean
     ): String {
-        val firstFail = failedList.firstOrNull()?.second?.message ?: "Action failed"
+        val first = failedList.firstOrNull()
+        val message = first?.second?.message.orEmpty()
+        if (message.startsWith("TAVILY_KEY_MISSING:")) return "Web search ke liye Settings mein Tavily API key add kar de."
+        if (message.startsWith("MUSIC_PERMISSION_REQUIRED:")) return "Local music chalane ke liye audio permission allow kar de."
+        if (message.startsWith("CONTACT_PERMISSION_REQUIRED:")) return "Contacts access allow kar de, phir main call laga dungi."
+        if (message.startsWith("CALL_PERMISSION_REQUIRED:")) return "Number dialer mein khol diya hai. Call karne ke liye Call button daba dena."
         return if (isHindiHinglish) {
-            "माफ़ कीजिए, यह काम पूरा नहीं हो पाया: $firstFail"
+            "Ye kaam abhi nahi ho paaya, bhai. Ek baar permission ya setting check kar le."
         } else {
-            "Could not complete the action: $firstFail"
+            "I couldn't complete that action. Please check the required permission or setting."
         }
     }
 
