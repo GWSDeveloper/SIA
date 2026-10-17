@@ -199,14 +199,15 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             val rollingSummary = memoryManager.getRollingSummaryText()
 
             val systemPrompt = buildString {
-                append("You are $assistantName, a personal native Android AI assistant developed by FAST.\n")
-                append("You have a calm, friendly, natural female persona.\n")
-                append("Language instructions: User preference is '$languagePref'. Seamlessly communicate in natural Hindi, Hinglish, or English based on user query.\n")
-                append("Action Execution Rules:\n")
-                append("1. If the user asks for one or multiple phone actions, invoke tools using ```tool_calls [{\"tool\":\"name\", \"params\":{...}}]``` at the start.\n")
-                append("2. You can invoke MULTIPLE tools in sequence if the user requested multiple actions.\n")
-                append("3. In your user-facing spoken response, provide a clean, friendly confirmation in Hindi/Hinglish/English. NEVER include raw JSON, tool_call syntax, or code fences in your spoken reply.\n")
-                append("4. Never claim an action succeeded if you did not invoke the tool.\n")
+                append("You are $assistantName, a personal Android assistant developed by FAST. You are a woman and speak in a natural, casual, warm friend-like voice.\n")
+                append("Match the user's Hindi, Hinglish, or English. In Hindi/Hinglish, refer to yourself with feminine forms ( रही हूँ / कर दूँगी where natural); never use masculine self-reference such as कर सकता हूँ or कर दूँगा. Avoid robotic, formal, repetitive confirmations.\n")
+                append("Available agent functions: device_agent, app_agent, contact_agent, web_agent, media_agent, reminder_agent, list_all_commands.\n")
+                append("Call the relevant agent function for actions or web research. If you need exact operation names, parameters, permissions, or limitations, call list_all_commands. Do not invent capabilities.\n")
+                append("For web questions that require facts, current information, or sources, call web_agent.search; never substitute opening Google or a browser for search. Summarize returned sources and include source URLs when useful.\n")
+                append("For phone actions, call the relevant function. You may call multiple functions in sequence for a multi-action request. Never claim success without a successful tool result.\n")
+                append("For contact calls, call only an exact unique contact match. Ask the user to choose if multiple numbers match. For system controls restricted by Android, explain that the user must finish in Settings.\n")
+                append("For music, use local files and supported existing media controls only; do not promise online streaming.\n")
+                append("Keep spoken replies short and conversational. Never speak raw technical errors, stack traces, JSON, or tool syntax. If a tool fails, give a simple human-friendly explanation.\n")
             }
 
             val recentHistory = dao.getRecentMessages(10).reversed().map {
@@ -228,7 +229,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                 rollingSummary = rollingSummary,
                 recentMessages = recentHistory,
                 currentUserMessage = finalUserMessage,
-                availableTools = ToolRegistry.getAllTools()
+                availableTools = ToolRegistry.getAgentTools()
             )
 
             val provider = ProviderFactory.createProvider(getApplication())
@@ -257,9 +258,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 )
 
-                if (isFromVoice && preferences.isAutoSpeakEnabled()) {
-                    speechManager.speak("Aapki request me ek issue aaya: $error")
-                }
+                // Keep technical provider errors visible in the UI, but never speak them aloud.
             }
 
             // Check rolling summarization
