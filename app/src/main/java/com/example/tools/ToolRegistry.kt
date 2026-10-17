@@ -369,16 +369,10 @@ object ToolRegistry {
             ))
         }
 
-        // 7. Target: Web Search
+        // Web search is intentionally routed through the LLM and web_agent so retrieved
+        // source material can be synthesized into an answer instead of opening Google.
         val searchPrefixes = listOf("search for ", "search ", "google ", "dhundo ", "find ")
-        for (prefix in searchPrefixes) {
-            if (raw.startsWith(prefix)) {
-                val query = raw.removePrefix(prefix).trim()
-                if (query.length > 2) {
-                    return SingleToolCall("web_search", mapOf("query" to query))
-                }
-            }
-        }
+        if (searchPrefixes.any { raw.startsWith(it) }) return null
 
         // 8. Target: Command Discovery
         if (raw.contains("what can you do") || raw.contains("list commands") || raw == "help" || raw.contains("capabilities")) {
