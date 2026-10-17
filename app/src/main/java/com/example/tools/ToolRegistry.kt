@@ -10,12 +10,12 @@ object ToolRegistry {
      * each agent owns its operation-specific validation and implementation.
      */
     fun getAgentTools(): List<ToolDefinition> = listOf(
-        ToolDefinition("device_agent", "Control device settings. Set brightness directly to a percentage from 0 to 100 when permission is granted; use level=100 for maximum/full brightness. Volume uses the same percentage range. Wi-Fi, Bluetooth, mobile data and hotspot may open Android Settings because direct toggles are restricted. Torch needs Camera permission.", listOf(
-            ToolParameter("action", "string", "torch_on, torch_off, wifi_on/off, bluetooth_on/off, mobile_data_on/off, hotspot_on/off, volume, brightness"),
-            ToolParameter("state", "string", "Desired state on/off/toggle; for brightness, full/max means 100", false),
-            ToolParameter("level", "number", "Target percentage from 0 to 100 for brightness or volume; brightness full/max must use 100", false)
+        ToolDefinition("device_agent", "Control supported device settings and hardware features. Choose the requested operation and pass its required arguments. Some Android settings may require user permission or opening system settings; torch control requires Camera permission.", listOf(
+            ToolParameter("action", "string", "Supported operation, such as torch_on, torch_off, wifi_on/off, bluetooth_on/off, mobile_data_on/off, hotspot_on/off, volume, or brightness"),
+            ToolParameter("state", "string", "Requested state or mode when the operation uses one", false),
+            ToolParameter("level", "number", "Target percentage from 0 to 100 when the operation uses a level", false)
         )),
-        ToolDefinition("app_agent", "Open an installed app or return to the launcher. For requests combining an app launch with any other action, emit a separate tool call for every requested action. Android does not permit third-party force-stopping arbitrary apps.", listOf(
+        ToolDefinition("app_agent", "Open an installed app or return to the launcher. Android does not permit third-party force-stopping arbitrary apps.", listOf(
             ToolParameter("action", "string", "open or close"),
             ToolParameter("app_name", "string", "Installed app name when action is open", false)
         )),
