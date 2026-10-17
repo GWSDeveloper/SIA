@@ -38,6 +38,18 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `agent registry exposes modular assistant functions`() {
+        val names = ToolRegistry.getAgentTools().map { it.name }
+        assertTrue(names.contains("device_agent"))
+        assertTrue(names.contains("app_agent"))
+        assertTrue(names.contains("contact_agent"))
+        assertTrue(names.contains("web_agent"))
+        assertTrue(names.contains("media_agent"))
+        assertTrue(names.contains("reminder_agent"))
+        assertTrue(names.contains("list_all_commands"))
+    }
+
+    @Test
     fun `local intent matcher parses flashlight and app commands`() {
         val torchMatches = ToolRegistry.matchLocalIntent("torch on please")
         assertEquals(1, torchMatches.size)
