@@ -58,5 +58,5 @@ class ContactAgent(private val context: Context) {
         .lowercase(Locale.ROOT)
         .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
         .trim()
-        .replace(Regex("\\\\s+"), " ")
+        .replace(Regex("\\s+"), " ")
 }
