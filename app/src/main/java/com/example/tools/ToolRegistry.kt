@@ -5,6 +5,47 @@ import java.util.Locale
 
 object ToolRegistry {
 
+    /**
+     * Compact agent-facing API. The orchestrator exposes these stable function names;
+     * each agent owns its operation-specific validation and implementation.
+     */
+    fun getAgentTools(): List<ToolDefinition> = listOf(
+        ToolDefinition("device_agent", "Control torch and volume. Wi-Fi, Bluetooth, mobile data, hotspot, and brightness may open Android Settings because direct toggles are restricted. Torch needs Camera permission. Discover supported operations with list_all_commands.", listOf(
+            ToolParameter("action", "string", "torch_on, torch_off, wifi_on/off, bluetooth_on/off, mobile_data_on/off, hotspot_on/off, volume, brightness"),
+            ToolParameter("state", "string", "Desired state on/off/toggle when relevant", false),
+            ToolParameter("level", "number", "Volume percentage from 0 to 100", false)
+        )),
+        ToolDefinition("app_agent", "Open an installed app or return to the launcher. Android does not permit third-party force-stopping arbitrary apps.", listOf(
+            ToolParameter("action", "string", "open or close"),
+            ToolParameter("app_name", "string", "Installed app name when action is open", false)
+        )),
+        ToolDefinition("contact_agent", "Requires Contacts access; direct calling also needs Call Phone permission. Find an exact saved contact name and call it. Never call if the name is ambiguous; ask the user to choose.", listOf(
+            ToolParameter("action", "string", "call"),
+            ToolParameter("name", "string", "Exact contact display name")
+        )),
+        ToolDefinition("web_agent", "Search the live web using the Tavily API key saved in Settings and return source excerpts for answer synthesis. Do not open Google or a browser.", listOf(
+            ToolParameter("action", "string", "search"),
+            ToolParameter("query", "string", "Question or search terms")
+        )),
+        ToolDefinition("media_agent", "Play music stored locally on this phone. Local playback needs audio permission; controlling another media app needs SIA Notification Access. Online streaming is not supported in this version.", listOf(
+            ToolParameter("action", "string", "play, pause, resume, stop, next, previous, or control_existing"),
+            ToolParameter("media_action", "string", "Existing app media key: play_pause, play, pause, next, previous", false),
+            ToolParameter("query", "string", "Optional song title or artist to match in local files", false)
+        )),
+        ToolDefinition("reminder_agent", "Create, inspect, or cancel persistent reminders. Notification permission is needed for alerts; exact alarm access affects timing precision.", listOf(
+            ToolParameter("action", "string", "create, list, or cancel"),
+            ToolParameter("description", "string", "Reminder description", false),
+            ToolParameter("delay_minutes", "number", "Minutes from now", false),
+            ToolParameter("task_id", "string", "Existing reminder ID for cancellation or status", false)
+        )),
+        ToolDefinition("list_all_commands", "Discover supported operations, permissions and platform limitations.", emptyList()),
+        ToolDefinition("create_workspace_note", "Save a note in the SIA workspace.", listOf(
+            ToolParameter("title", "string", "Note title"),
+            ToolParameter("content", "string", "Note contents")
+        )),
+        ToolDefinition("export_app_apk", "Open the installed SIA APK export/share flow.", emptyList())
+    )
+
     fun getAllTools(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "open_app",
@@ -15,7 +56,7 @@ object ToolRegistry {
         ),
         ToolDefinition(
             name = "web_search",
-            description = "Search the internet or Google for information, answers, queries, or topics.",
+            description = "Search the live web using the configured Tavily API and return source excerpts for answer synthesis.",
             parameters = listOf(
                 ToolParameter("query", "string", "The search query string")
             )
@@ -296,16 +337,16 @@ object ToolRegistry {
 
         // 4. Target: Media Playback
         if (raw.contains("next song") || raw.contains("next track") || raw.contains("agla gana") || raw.contains("play next")) {
-            return SingleToolCall("control_media", mapOf("action" to "next"))
+            return SingleToolCall("media_agent", mapOf("action" to "next"))
         }
         if (raw.contains("previous song") || raw.contains("pichla gana") || raw.contains("play previous") || raw.contains("prev song")) {
-            return SingleToolCall("control_media", mapOf("action" to "previous"))
+            return SingleToolCall("media_agent", mapOf("action" to "previous"))
         }
         if (raw.contains("pause music") || raw.contains("gana roko") || raw == "pause" || raw == "stop music") {
-            return SingleToolCall("control_media", mapOf("action" to "pause"))
+            return SingleToolCall("media_agent", mapOf("action" to "pause"))
         }
         if (raw.contains("play music") || raw.contains("gana bajao") || raw == "play" || raw == "resume") {
-            return SingleToolCall("control_media", mapOf("action" to "play"))
+            return SingleToolCall("media_agent", mapOf("action" to "play"))
         }
 
         // 5. Target: APK Export / Install
@@ -329,16 +370,10 @@ object ToolRegistry {
             ))
         }
 
-        // 7. Target: Web Search
+        // Web search is intentionally routed through the LLM and web_agent so retrieved
+        // source material can be synthesized into an answer instead of opening Google.
         val searchPrefixes = listOf("search for ", "search ", "google ", "dhundo ", "find ")
-        for (prefix in searchPrefixes) {
-            if (raw.startsWith(prefix)) {
-                val query = raw.removePrefix(prefix).trim()
-                if (query.length > 2) {
-                    return SingleToolCall("web_search", mapOf("query" to query))
-                }
-            }
-        }
+        if (searchPrefixes.any { raw.startsWith(it) }) return null
 
         // 8. Target: Command Discovery
         if (raw.contains("what can you do") || raw.contains("list commands") || raw == "help" || raw.contains("capabilities")) {

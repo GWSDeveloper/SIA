@@ -5,6 +5,10 @@ on:
   push:
     branches:
       - main
+      - feat/sia-tool-platform
+  pull_request:
+    branches:
+      - main
 
 # Avoid overlapping runs on the same ref clobbering each other's artifacts.
 concurrency:

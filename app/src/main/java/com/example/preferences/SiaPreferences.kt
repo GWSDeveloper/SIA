@@ -211,6 +211,13 @@ class SiaPreferences(private val context: Context) {
         prefs.edit().putString("sarvam_api_key", key.trim()).apply()
     }
 
+    // Tavily web search configuration
+    fun getTavilyApiKey(): String = prefs.getString("tavily_api_key", "") ?: ""
+
+    fun setTavilyApiKey(key: String) {
+        prefs.edit().putString("tavily_api_key", key.trim()).apply()
+    }
+
     fun getSarvamSpeaker(): String =
         prefs.getString("sarvam_speaker", "suman_hi_companion") ?: "suman_hi_companion"
 
