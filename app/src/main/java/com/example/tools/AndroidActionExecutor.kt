@@ -78,18 +78,18 @@ class AndroidActionExecutor(private val context: Context) {
         return when (action) {
             "torch", "flashlight" -> handleToggleTorch(state.ifBlank { "toggle" })
             "volume", "set_volume" -> handleSetVolume(params["level"]?.toIntOrNull() ?: 50)
-            "wifi", "bluetooth", "mobile_data", "data", "hotspot", "brightness" -> {
+            "brightness", "set_brightness" -> handleSetBrightness(params["level"]?.toIntOrNull() ?: if (state == "max" || state == "full") 100 else 50)
+            "wifi", "bluetooth", "mobile_data", "data", "hotspot" -> {
                 val setting = when (action) {
                     "wifi" -> "wifi"
                     "bluetooth" -> "bluetooth"
                     "hotspot" -> "hotspot"
-                    "mobile_data", "data" -> "mobile_data"
-                    else -> "display"
+                    else -> "mobile_data"
                 }
                 val result = handleOpenSettings(setting)
                 if (result.status == ToolResultStatus.SUCCESS) ToolExecutionResult(
                     ToolResultStatus.USER_CONFIRMATION_REQUIRED,
-                    "Android opened the $setting settings screen. The user must complete this change there; do not claim the setting was toggled."
+                    "Android opened the $setting settings screen. This Android version restricts direct toggling by ordinary apps, so SIA cannot claim it changed the switch."
                 ) else result
             }
             else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "This device action is not supported.")
@@ -113,6 +113,10 @@ class AndroidActionExecutor(private val context: Context) {
 
     private fun handleMediaAgent(params: Map<String, String>): ToolExecutionResult {
         val action = params["action"]?.lowercase(Locale.ROOT).orEmpty()
+        val query = params["query"]?.trim().orEmpty()
+        if (action in setOf("play", "resume") && query.isNotBlank()) {
+            return localMusicPlayer.control("play", query)
+        }
         val sessionAction = if (action == "control_existing") params["media_action"] ?: "play_pause" else action
         val sessionResult = mediaSessionAgent.control(sessionAction)
         if (sessionResult?.status == ToolResultStatus.SUCCESS) return sessionResult
@@ -292,6 +296,21 @@ class AndroidActionExecutor(private val context: Context) {
             status = ToolResultStatus.SUCCESS,
             message = "Media control '$action' sent."
         )
+    }
+
+    private fun handleSetBrightness(level: Int): ToolExecutionResult {
+        val percent = level.coerceIn(0, 100)
+        return try {
+            if (!Settings.System.canWrite(context)) {
+                context.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "BRIGHTNESS_PERMISSION_REQUIRED: Allow SIA to modify system settings, then repeat the brightness command.")
+            }
+            val value = (percent * 255 / 100).coerceIn(1, 255)
+            Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, value)
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Screen brightness set to $percent percent.")
+        } catch (_: Exception) {
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not change screen brightness. Check SIA's Modify System Settings permission.")
+        }
     }
 
     private fun handleSetVolume(levelPercent: Int): ToolExecutionResult {
