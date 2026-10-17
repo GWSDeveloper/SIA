@@ -134,7 +134,7 @@ class GeminiProvider(
                 val part = parts.optJSONObject(i) ?: continue
                 val partText = part.optString("text")
                 if (partText.isNotBlank()) {
-                    if (isNotEmpty()) append("\\n")
+                    if (isNotEmpty()) append("\n")
                     append(partText)
                 }
             }
