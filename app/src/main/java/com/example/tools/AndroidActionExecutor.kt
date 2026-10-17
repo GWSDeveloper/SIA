@@ -68,18 +68,22 @@ class AndroidActionExecutor(private val context: Context) {
     }
 
     private fun handleDeviceAgent(params: Map<String, String>): ToolExecutionResult {
-        val action = params["action"]?.lowercase(Locale.ROOT).orEmpty()
-        val state = params["state"]?.lowercase(Locale.ROOT).orEmpty()
+        val rawAction = params["action"]?.lowercase(Locale.ROOT).orEmpty()
+        val action = rawAction.removeSuffix("_on").removeSuffix("_off")
+        val state = when {
+            rawAction.endsWith("_on") -> "on"
+            rawAction.endsWith("_off") -> "off"
+            else -> params["state"]?.lowercase(Locale.ROOT).orEmpty()
+        }
         return when (action) {
-            "torch", "torch_on" -> handleToggleTorch(if (action == "torch_on") "on" else state.ifBlank { "toggle" })
-            "torch_off" -> handleToggleTorch("off")
+            "torch", "flashlight" -> handleToggleTorch(state.ifBlank { "toggle" })
             "volume", "set_volume" -> handleSetVolume(params["level"]?.toIntOrNull() ?: 50)
-            "wifi", "bluetooth", "mobile_data", "hotspot", "brightness" -> {
+            "wifi", "bluetooth", "mobile_data", "data", "hotspot", "brightness" -> {
                 val setting = when (action) {
                     "wifi" -> "wifi"
                     "bluetooth" -> "bluetooth"
                     "hotspot" -> "hotspot"
-                    "mobile_data" -> "mobile_data"
+                    "mobile_data", "data" -> "mobile_data"
                     else -> "display"
                 }
                 val result = handleOpenSettings(setting)
