@@ -269,7 +269,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             if (responseResult.isSuccess) {
                 val llmOutput: LlmCallResult = responseResult.getOrThrow()
                 if (llmOutput.toolCalls.isNotEmpty()) {
-                    executeMultiActions(llmOutput.toolCalls, isFromVoice, userInput, explicitSpokenText = llmOutput.textReply)
+                    executeMultiActions(llmOutput.toolCalls, isFromVoice, userInput, explicitSpokenText = llmOutput.textReply, planningContext = promptContext)
                 } else {
                     // Normal informational conversation without tool calls
                     handleConversationalReply(llmOutput.textReply, isFromVoice)
@@ -363,7 +363,8 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         toolCalls: List<SingleToolCall>,
         isFromVoice: Boolean,
         originalUserText: String,
-        explicitSpokenText: String?
+        explicitSpokenText: String?,
+        planningContext: PromptContext
     ) {
         _visualState.value = AssistantVisualState.EXECUTING
         val executionResults = mutableListOf<Pair<SingleToolCall, ToolExecutionResult>>()
