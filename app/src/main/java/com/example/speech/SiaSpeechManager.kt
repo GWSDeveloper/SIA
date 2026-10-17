@@ -696,9 +696,9 @@ class SiaSpeechManager(
                         }
                     }
                     val bestVoice = candidates.sortedWith(
-                        compareByDescending<Voice> { it.quality >= Voice.QUALITY_VERY_HIGH }
+                        compareByDescending<Voice> { it.isNetworkConnectionRequired }
+                            .thenByDescending { it.quality >= Voice.QUALITY_VERY_HIGH }
                             .thenByDescending { it.quality >= Voice.QUALITY_HIGH }
-                            .thenByDescending { it.isNetworkConnectionRequired }
                             .thenByDescending { it.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) != true }
                     ).firstOrNull()
                     if (bestVoice != null) {
