@@ -34,7 +34,7 @@ class ContactAgent(private val context: Context) {
         val uniqueNumbers = matches.distinctBy { normalize(it.second) }
         if (uniqueNumbers.isEmpty()) return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "No exact contact match was found for '$name'.")
         if (uniqueNumbers.size > 1) {
-            val options = uniqueNumbers.joinToString("; ") { "\${it.first}: \${it.second}" }
+            val options = uniqueNumbers.joinToString("; ") { "${it.first}: ${it.second}" }
             return ToolExecutionResult(ToolResultStatus.USER_CONFIRMATION_REQUIRED, "AMBIGUOUS_CONTACTS: More than one phone number matches '$name'. Ask which one to call: $options")
         }
 
@@ -42,11 +42,11 @@ class ContactAgent(private val context: Context) {
         return try {
             val number = match.second
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
-                context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:\${Uri.encode(number)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                ToolExecutionResult(ToolResultStatus.SUCCESS, "Call started for \${match.first}.")
+                context.startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(number)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                ToolExecutionResult(ToolResultStatus.SUCCESS, "Call started for ${match.first}.")
             } else {
-                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:\${Uri.encode(number)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                ToolExecutionResult(ToolResultStatus.USER_CONFIRMATION_REQUIRED, "CALL_PERMISSION_REQUIRED: Opened the dialer for \${match.first}; tap Call to continue.")
+                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(number)}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                ToolExecutionResult(ToolResultStatus.USER_CONFIRMATION_REQUIRED, "CALL_PERMISSION_REQUIRED: Opened the dialer for ${match.first}; tap Call to continue.")
             }
         } catch (_: Exception) {
             ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Android could not start the call.")
@@ -54,9 +54,9 @@ class ContactAgent(private val context: Context) {
     }
 
     private fun normalize(value: String): String = Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
-        .replace(Regex("\\\\p{Mn}+"), "")
+        .replace(Regex("\\p{Mn}+"), "")
         .lowercase(Locale.ROOT)
-        .replace(Regex("[^\\\\p{L}\\\\p{N}]+"), " ")
+        .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
         .trim()
         .replace(Regex("\\\\s+"), " ")
 }
