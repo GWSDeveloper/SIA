@@ -187,7 +187,7 @@ class SiaPreferences(private val context: Context) {
     }
 
     // Sarvam AI Text-to-Speech configuration
-    fun isSarvamTtsEnabled(): Boolean = prefs.getBoolean("sarvam_tts_enabled", true)
+    fun isSarvamTtsEnabled(): Boolean = prefs.getBoolean("sarvam_tts_enabled", false)
 
     fun setSarvamTtsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("sarvam_tts_enabled", enabled).apply()
