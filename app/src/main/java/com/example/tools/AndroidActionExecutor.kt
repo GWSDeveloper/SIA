@@ -33,6 +33,7 @@ class AndroidActionExecutor(private val context: Context) {
     private val webSearchAgent = WebSearchAgent(context)
     private val contactAgent = ContactAgent(context)
     private val localMusicPlayer = LocalMusicPlayer(context)
+    private val mediaSessionAgent = MediaSessionAgent(context)
 
     suspend fun executeTool(name: String, params: Map<String, String>): ToolExecutionResult {
         return withContext(Dispatchers.IO) {
@@ -108,12 +109,31 @@ class AndroidActionExecutor(private val context: Context) {
 
     private fun handleMediaAgent(params: Map<String, String>): ToolExecutionResult {
         val action = params["action"]?.lowercase(Locale.ROOT).orEmpty()
-        return when (action) {
-            "control_existing" -> handleControlMedia(params["media_action"] ?: "play_pause")
-            "play", "resume", "pause", "stop", "next", "previous" ->
-                localMusicPlayer.control(action, params["query"] ?: "")
+        val sessionAction = if (action == "control_existing") params["media_action"] ?: "play_pause" else action
+        val sessionResult = mediaSessionAgent.control(sessionAction)
+        if (sessionResult?.status == ToolResultStatus.SUCCESS) return sessionResult
+        if (action == "control_existing") {
+            if (sessionResult?.status == ToolResultStatus.PERMISSION_REQUIRED) {
+                try {
+                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (_: Exception) {}
+                return sessionResult
+            }
+            return sessionResult ?: ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "No active media session was found.")
+        }
+
+        val localResult = when (action) {
+            "play", "resume", "pause", "stop", "next", "previous" -> localMusicPlayer.control(action, params["query"] ?: "")
             else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Use media_agent with a supported playback action.")
         }
+        if (localResult.status == ToolResultStatus.SUCCESS) return localResult
+        if (sessionResult?.status == ToolResultStatus.PERMISSION_REQUIRED) {
+            try {
+                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (_: Exception) {}
+            return sessionResult
+        }
+        return localResult
     }
 
     private suspend fun handleReminderAgent(params: Map<String, String>): ToolExecutionResult {
