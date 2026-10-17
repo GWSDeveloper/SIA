@@ -45,6 +45,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
     val preferences = SiaPreferences.getInstance(application)
     val memoryManager = MemoryManager(application)
     private val actionExecutor = AndroidActionExecutor(application)
+    @Volatile private var pendingContactChoices: List<Pair<String, String>> = emptyList()
 
     // Current navigation tab
     private val _currentTab = MutableStateFlow(MainScreenTab.AI_AGENT)
@@ -163,6 +164,36 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun processUserMessage(userInput: String, isFromVoice: Boolean) {
         if (userInput.isBlank()) return
+
+        // Resolve a number choice directly after SIA asks which saved contact number to call.
+        val pendingChoices = pendingContactChoices
+        if (pendingChoices.isNotEmpty()) {
+            val requestedDigits = userInput.filter(Char::isDigit)
+            val lowerChoice = userInput.lowercase(Locale.ROOT)
+            val selected = when {
+                requestedDigits.length >= 7 -> pendingChoices.firstOrNull { (_, number) ->
+                    val digits = number.filter(Char::isDigit)
+                    digits == requestedDigits || digits.endsWith(requestedDigits) || requestedDigits.endsWith(digits)
+                }
+                listOf("second", "2nd", "number two", "doosra", "dusra", "सेकंड", "दूसरा", "दूसरे").any { lowerChoice.contains(it) } -> pendingChoices.getOrNull(1)
+                listOf("first", "1st", "number one", "pehla", "पहला", "पहली", "फर्स्ट").any { lowerChoice.contains(it) } -> pendingChoices.firstOrNull()
+                else -> null
+            }
+            if (selected != null) {
+                pendingContactChoices = emptyList()
+                viewModelScope.launch {
+                    dao.insertMessage(ConversationEntity(sender = "user", text = userInput, timestamp = System.currentTimeMillis()))
+                    val result = actionExecutor.executeTool("contact_agent", mapOf("action" to "call_number", "number" to selected.second))
+                    val reply = when (result.status) {
+                        ToolResultStatus.SUCCESS -> "Theek hai, " + selected.first + " ko call laga rahi hoon."
+                        ToolResultStatus.USER_CONFIRMATION_REQUIRED -> "Dialer khol diya hai, call karne ke liye Call button daba dena."
+                        else -> "Ye number contact mein nahi mila. Ek baar phir se number bol de."
+                    }
+                    handleConversationalReply(reply, isFromVoice)
+                }
+                return
+            }
+        }
 
         viewModelScope.launch {
             _visualState.value = AssistantVisualState.THINKING
@@ -375,7 +406,36 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        val webIssue = executionResults.firstOrNull {
+            it.first.toolName in setOf("web_agent", "web_search") && it.second.status != ToolResultStatus.SUCCESS
+        }
+        if (webIssue != null) {
+            val detail = webIssue.second.message
+            val reply = when {
+                detail.startsWith("TAVILY_KEY_MISSING:") -> "Web search ke liye Settings mein Tavily key add kar de."
+                detail.contains("HTTP 401") || detail.contains("HTTP 403") || detail.contains("rejected the API key", true) -> "Tavily key accept nahi hui. Settings mein key dobara check kar; key ko chat mein share mat karna."
+                detail.contains("HTTP 400") -> "Tavily request reject hui. Error detail: " + detail.take(180)
+                detail.contains("HTTP 429") || detail.contains("request limit", true) -> "Tavily ki request limit hit hui lagti hai. Thodi der baad try kar."
+                detail.contains("HTTP 5") -> "Tavily service mein temporary problem hai. Thodi der baad try kar."
+                detail.contains("could not reach", true) -> "Search service tak connection nahi ho raha. Internet check kar."
+                else -> "Search fail hui: " + detail.take(180)
+            }
+            handleConversationalReply(reply, isFromVoice)
+            return
+        }
+
         // Surface ambiguous contact matches as a clarification, without exposing technical errors.
+        val ambiguousContactResult = executionResults.firstOrNull {
+            it.first.toolName == "contact_agent" && it.second.message.startsWith("AMBIGUOUS_CONTACTS:")
+        }
+        if (ambiguousContactResult != null) {
+            val rawOptions = ambiguousContactResult.second.message.substringAfter("Ask which one to call: ", "")
+            pendingContactChoices = rawOptions.split(";").mapNotNull { item ->
+                val parts = item.trim().split(Regex(":\\s*"), limit = 2)
+                if (parts.size == 2 && parts[1].filter(Char::isDigit).length >= 7) parts[0].trim() to parts[1].trim() else null
+            }
+        }
+
         val contactIssue = executionResults.firstOrNull {
             it.first.toolName == "contact_agent" && it.second.status != ToolResultStatus.SUCCESS
         }
