@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.ContactsContract
+import android.icu.text.Transliterator
 import androidx.core.content.ContextCompat
 import java.text.Normalizer
 import java.util.Locale
@@ -27,7 +28,7 @@ class ContactAgent(private val context: Context) {
             if (nameIndex >= 0 && numberIndex >= 0) while (cursor.moveToNext()) {
                 val displayName = cursor.getString(nameIndex)?.trim().orEmpty()
                 val number = cursor.getString(numberIndex)?.trim().orEmpty()
-                if (displayName.isNotBlank() && number.isNotBlank() && normalize(displayName) == requested) matches.add(displayName to number)
+                if (displayName.isNotBlank() && number.isNotBlank() && (normalize(displayName) == requested || transliterated(displayName) == transliterated(name))) matches.add(displayName to number)
             }
         }
 
@@ -51,6 +52,12 @@ class ContactAgent(private val context: Context) {
         } catch (_: Exception) {
             ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Android could not start the call.")
         }
+    }
+
+    private fun transliterated(value: String): String = try {
+        normalize(Transliterator.getInstance("Devanagari-Latin; Latin-ASCII").transliterate(value))
+    } catch (_: Exception) {
+        normalize(value)
     }
 
     private fun normalize(value: String): String = Normalizer.normalize(value.trim(), Normalizer.Form.NFD)
