@@ -41,9 +41,9 @@ class GeminiProvider(
                     }
                     append("\nIf the user's intent requires actions, you can invoke one or multiple tools using this JSON format at the start of your response:")
                     append("\n```tool_calls\n[{\"tool\": \"tool_name\", \"params\": {\"param_name\": \"value\"}}]\n```")
-                    append("\nMusic rule: if the user names a specific song or artist, call media_agent with action=play and put ONLY the cleaned song title/artist in query. Never omit query for a named song, never substitute a random/current song when a requested title does not match, and report no match honestly.")
+                    append("\nMusic rule: route every music request through media_agent. Pass the user's requested song/artist/track wording as the query parameter; do not rely on hardcoded song names or local intent rules. For next/previous/pause/resume, use the matching action. Never claim playback succeeded unless the tool result says it succeeded.")
                     append("\nWeb rule: for factual/current questions call web_agent with action=search and query containing the actual question. If the tool fails, report the diagnostic returned by the tool in simple language; do not pretend search succeeded.")
-                    append("\nFollowed by a concise, friendly spoken response in Hindi/Hinglish/English depending on user context. Do not include raw json in your spoken response.")
+                    append("\nReply in Roman-script Hinglish by default when the user speaks Hinglish; reply in English when the user speaks English. Use Devanagari Hindi only when the user clearly speaks/writes in Hindi or requests it. Keep spoken replies concise and natural, and never include raw JSON in the spoken response.")
                 }
 
                 val fullSystemInstruction = buildString {
