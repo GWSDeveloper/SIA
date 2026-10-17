@@ -589,6 +589,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val first = failedList.firstOrNull()
         val message = first?.second?.message.orEmpty()
         if (message.startsWith("TAVILY_KEY_MISSING:")) return "Web search ke liye Settings mein Tavily API key add kar de."
+        if (message.startsWith("Tavily rejected the API key")) return "Tavily key sahi nahi lag rahi. Settings mein key check kar le."
         if (message.startsWith("MUSIC_PERMISSION_REQUIRED:")) return "Local music chalane ke liye audio permission allow kar de."
         if (message.startsWith("MEDIA_ACCESS_REQUIRED:")) return "Existing music app control karne ke liye Notification Access mein SIA ko allow kar de."
         if (message.startsWith("CONTACT_PERMISSION_REQUIRED:")) return "Contacts access allow kar de, phir main call laga dungi."
