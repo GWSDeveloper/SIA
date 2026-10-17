@@ -337,16 +337,16 @@ object ToolRegistry {
 
         // 4. Target: Media Playback
         if (raw.contains("next song") || raw.contains("next track") || raw.contains("agla gana") || raw.contains("play next")) {
-            return SingleToolCall("control_media", mapOf("action" to "next"))
+            return SingleToolCall("media_agent", mapOf("action" to "next"))
         }
         if (raw.contains("previous song") || raw.contains("pichla gana") || raw.contains("play previous") || raw.contains("prev song")) {
-            return SingleToolCall("control_media", mapOf("action" to "previous"))
+            return SingleToolCall("media_agent", mapOf("action" to "previous"))
         }
         if (raw.contains("pause music") || raw.contains("gana roko") || raw == "pause" || raw == "stop music") {
-            return SingleToolCall("control_media", mapOf("action" to "pause"))
+            return SingleToolCall("media_agent", mapOf("action" to "pause"))
         }
         if (raw.contains("play music") || raw.contains("gana bajao") || raw == "play" || raw == "resume") {
-            return SingleToolCall("control_media", mapOf("action" to "play"))
+            return SingleToolCall("media_agent", mapOf("action" to "play"))
         }
 
         // 5. Target: APK Export / Install
