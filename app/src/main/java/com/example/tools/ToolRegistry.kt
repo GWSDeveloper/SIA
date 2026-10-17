@@ -10,10 +10,10 @@ object ToolRegistry {
      * each agent owns its operation-specific validation and implementation.
      */
     fun getAgentTools(): List<ToolDefinition> = listOf(
-        ToolDefinition("device_agent", "Control torch and volume. Wi-Fi, Bluetooth, mobile data, hotspot, and brightness may open Android Settings because direct toggles are restricted. Torch needs Camera permission. Discover supported operations with list_all_commands.", listOf(
-            ToolParameter("action", "string", "torch_on, torch_off, wifi_on/off, bluetooth_on/off, mobile_data_on/off, hotspot_on/off, volume, brightness"),
-            ToolParameter("state", "string", "Desired state on/off/toggle when relevant", false),
-            ToolParameter("level", "number", "Volume percentage from 0 to 100", false)
+        ToolDefinition("device_agent", "Control supported device settings and hardware features. Choose the requested operation and pass its required arguments. Some Android settings may require user permission or opening system settings; torch control requires Camera permission.", listOf(
+            ToolParameter("action", "string", "Supported operation, such as torch_on, torch_off, wifi_on/off, bluetooth_on/off, mobile_data_on/off, hotspot_on/off, volume, or brightness"),
+            ToolParameter("state", "string", "Requested state or mode when the operation uses one", false),
+            ToolParameter("level", "number", "Target percentage from 0 to 100 when the operation uses a level", false)
         )),
         ToolDefinition("app_agent", "Open an installed app or return to the launcher. Android does not permit third-party force-stopping arbitrary apps.", listOf(
             ToolParameter("action", "string", "open or close"),
@@ -335,20 +335,10 @@ object ToolRegistry {
             return SingleToolCall("set_volume", mapOf("level" to "0"))
         }
 
-        // 4. Target: Media Playback
-        if (raw.contains("next song") || raw.contains("next track") || raw.contains("agla gana") || raw.contains("play next")) {
-            return SingleToolCall("media_agent", mapOf("action" to "next"))
-        }
-        if (raw.contains("previous song") || raw.contains("pichla gana") || raw.contains("play previous") || raw.contains("prev song")) {
-            return SingleToolCall("media_agent", mapOf("action" to "previous"))
-        }
-        if (raw.contains("pause music") || raw.contains("gana roko") || raw == "pause" || raw == "stop music") {
-            return SingleToolCall("media_agent", mapOf("action" to "pause"))
-        }
-        if (raw.contains("play music") || raw.contains("gana bajao") || raw == "play" || raw == "resume") {
-            return SingleToolCall("media_agent", mapOf("action" to "play"))
-        }
-
+        // Music requests are intentionally handled by the LLM via media_agent.
+        // Keep song/artist extraction in the tool-call parameters rather than duplicating
+        // natural-language intent parsing here; this avoids hardcoded command patterns.
+        
         // 5. Target: APK Export / Install
         if (raw.contains("download apk") || raw.contains("install on phone") || raw.contains("install on my phone") ||
             raw.contains("export apk") || raw.contains("share apk") || raw.contains("install apk") ||
@@ -387,6 +377,22 @@ object ToolRegistry {
         }
 
         return null
+    }
+
+    private fun extractSongQuery(raw: String): String {
+        val commandWords = listOf(
+            "please", "play", "music", "song", "gana", "gaana", "bajao", "bajaa", "chalao", "chala",
+            "sunao", "suna", "named", "name", "se", "ko", "ka", "ki", "ke", "wala", "wali", "waala",
+            "kar", "karo", "do", "de", "dena", "isko", "use", "usko", "mere", "mera", "meri",
+            "the", "on", "my", "now", "please", "गाना", "गाने", "म्यूजिक", "सॉन्ग", "प्ले", "बजाओ",
+            "चलाओ", "सुनाओ", "सुन", "करो", "कर", "दो", "दे", "देना", "इसे", "इसे", "उसे", "उसको",
+            "नाम", "से", "वाला", "वाली", "का", "की", "के", "मेरा", "मेरी", "म्यूज़िक", "गाना", "होगा", "होगी", "है", "हो", "करना", "करदो", "कर दो"
+        )
+        val devanagariCleaned = raw.replace(Regex("[,!?।]+"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() && it !in commandWords }
+            .joinToString(" ")
+        return devanagariCleaned.trim()
     }
 
     private fun matchAppOpenIntent(raw: String): SingleToolCall? {

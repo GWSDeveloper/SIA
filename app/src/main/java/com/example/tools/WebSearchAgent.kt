@@ -27,7 +27,15 @@ class WebSearchAgent(context: Context) {
                 val bodyText = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     val status = response.code
-                    val message = when (status) { 401, 403 -> "Tavily rejected the API key. Check it in SIA Settings."; 429 -> "Tavily request limit reached. Try again later."; else -> "Web search is temporarily unavailable (HTTP $status)." }
+                    // Safe diagnostic from Tavily's response; never include the API key or request body.
+                    val providerDetail = bodyText.replace(Regex("[\\r\\n\\t]+"), " ").take(240)
+                    val message = when (status) {
+                        400 -> "Tavily rejected the search request (HTTP 400): $providerDetail"
+                        401, 403 -> "Tavily rejected the API key. Check it in SIA Settings."
+                        429 -> "Tavily request limit reached. Try again later."
+                        in 500..599 -> "Tavily server error (HTTP $status): $providerDetail"
+                        else -> "Web search failed (HTTP $status): $providerDetail"
+                    }
                     return ToolExecutionResult(if (status == 429 || status >= 500) ToolResultStatus.RETRYABLE_ERROR else ToolResultStatus.PERMANENT_ERROR, message)
                 }
                 val json = JSONObject(bodyText)

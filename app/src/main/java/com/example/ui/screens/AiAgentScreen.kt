@@ -176,7 +176,7 @@ fun AiAgentScreen(
                     onOrbClick = {
                         when (visualState) {
                             AssistantVisualState.PAUSED -> viewModel.resumeVoiceInteraction()
-                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.pauseVoiceInteraction()
+                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.stopVoiceInteraction()
                             else -> viewModel.startVoiceInteraction()
                         }
                     },
@@ -196,7 +196,7 @@ fun AiAgentScreen(
                     onMicClick = {
                         when (visualState) {
                             AssistantVisualState.PAUSED -> viewModel.resumeVoiceInteraction()
-                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.pauseVoiceInteraction()
+                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.stopVoiceInteraction()
                             else -> viewModel.startVoiceInteraction()
                         }
                     },

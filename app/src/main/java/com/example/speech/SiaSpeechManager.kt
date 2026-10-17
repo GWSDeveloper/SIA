@@ -414,10 +414,12 @@ class SiaSpeechManager(
         }
 
         val langPref = prefs.getLanguagePreference()
+        // Hinglish defaults to en-IN so speech results are more likely to be Roman text.
+        // Explicit Hindi mode remains hi-IN; explicit English mode remains en-IN.
         val primaryLang = when {
-            langPref.contains("Hindi", ignoreCase = true) -> "hi-IN"
-            langPref.contains("English", ignoreCase = true) -> "en-IN"
-            else -> "hi-IN"
+            langPref.equals("Hindi", ignoreCase = true) -> "hi-IN"
+            langPref.equals("English", ignoreCase = true) -> "en-IN"
+            else -> "en-IN"
         }
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -681,30 +683,36 @@ class SiaSpeechManager(
             } catch (_: Exception) {}
         } else {
             try {
-                val systemVoices = engine.voices
-                if (systemVoices != null && systemVoices.isNotEmpty()) {
-                    if (preferHindi) {
-                        val hiVoice = systemVoices.firstOrNull { it.locale.language.equals("hi", ignoreCase = true) }
-                        if (hiVoice != null) {
-                            engine.voice = hiVoice
-                            engine.language = hiVoice.locale
-                        } else {
-                            val enInVoice = systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) && it.locale.country.equals("IN", ignoreCase = true) }
-                            if (enInVoice != null) {
-                                engine.voice = enInVoice
-                                engine.language = enInVoice.locale
-                            }
-                        }
-                    } else {
-                        val enInVoice = systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) && it.locale.country.equals("IN", ignoreCase = true) }
-                            ?: systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) }
-                        if (enInVoice != null) {
-                            engine.voice = enInVoice
-                            engine.language = enInVoice.locale
+                val systemVoices = engine.voices.orEmpty()
+                if (systemVoices.isNotEmpty()) {
+                    val hindiVoices = systemVoices.filter { it.locale.language.equals("hi", ignoreCase = true) }
+                    val femaleHindiVoices = hindiVoices.filter { detectGenuineVoiceGender(it) == "Female" }
+                    val candidates = when {
+                        femaleHindiVoices.isNotEmpty() -> femaleHindiVoices
+                        hindiVoices.isNotEmpty() -> hindiVoices
+                        else -> systemVoices.filter {
+                            it.locale.language.equals("en", ignoreCase = true) &&
+                                it.locale.country.equals("IN", ignoreCase = true)
                         }
                     }
+                    val bestVoice = candidates.sortedWith(
+                        compareByDescending<Voice> { it.isNetworkConnectionRequired }
+                            .thenByDescending { it.quality >= Voice.QUALITY_VERY_HIGH }
+                            .thenByDescending { it.quality >= Voice.QUALITY_HIGH }
+                            .thenByDescending { it.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) != true }
+                    ).firstOrNull()
+                    if (bestVoice != null) {
+                        engine.voice = bestVoice
+                        engine.language = bestVoice.locale
+                    } else {
+                        engine.setLanguage(Locale.forLanguageTag("hi-IN"))
+                    }
+                } else {
+                    engine.setLanguage(Locale.forLanguageTag("hi-IN"))
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                try { engine.setLanguage(Locale.forLanguageTag("hi-IN")) } catch (_: Exception) {}
+            }
         }
 
         engine.setPitch(prefs.getSpeechPitch())
@@ -928,49 +936,11 @@ class SiaSpeechManager(
     }
 
     private fun selectBestRecognitionHypothesis(matches: List<String>): String {
-        if (matches.isEmpty()) return ""
-        val first = matches[0].trim()
-        if (matches.size == 1) return first
-
-        // If top match is conversational, preserve it exactly as spoken
-        val lowerFirst = first.lowercase(Locale.ROOT)
-        if (lowerFirst.contains("batao") || lowerFirst.contains("samjhao") || lowerFirst.contains("ke baare mein") || lowerFirst.contains("who are you") || lowerFirst.contains("tell me")) {
-            return first
-        }
-
-        // 1. If first match resolves cleanly as a supported local action, use it
-        val firstRes = ToolRegistry.resolveCommand(first)
-        if (firstRes is ToolRegistry.CommandResolution.LocalActions) {
-            return first
-        }
-
-        // 2. Check if an alternative hypothesis resolves cleanly as a supported local action
-        for (i in 1 until matches.size) {
-            val alt = matches[i].trim()
-            val altRes = ToolRegistry.resolveCommand(alt)
-            if (altRes is ToolRegistry.CommandResolution.LocalActions) {
-                return alt
-            }
-        }
-
-        // 3. If there is an app opening verb and installed apps can disambiguate the candidate
-        val openVerbs = listOf("open", "kholo", "khol do", "chalao", "chala do", "launch", "start", "run")
-        if (openVerbs.any { lowerFirst.contains(it) }) {
-            val installedApps = InstalledAppsHelper.getInstalledAppLabels(context)
-            if (installedApps.isNotEmpty()) {
-                for (candidateUtterance in matches) {
-                    val candidateApp = candidateUtterance
-                        .replace(Regex("""\b(please|zara|bhai|kar dena|kardo|kar do|karo|karna|karein|kijiye|chala dena|chalado|chala do|chalao|khol dena|kholdo|khol do|kholo|open|launch|start|run|app|application)\b""", RegexOption.IGNORE_CASE), " ")
-                        .trim()
-                    val matchedApp = InstalledAppsHelper.findMatchingInstalledApp(candidateApp, installedApps)
-                    if (matchedApp != null) {
-                        return "Open $matchedApp"
-                    }
-                }
-            }
-        }
-
-        return first
+        // Never replace the recognizer's top hypothesis with a shorter command inferred
+        // from an alternate hypothesis. Doing so can silently discard independent actions
+        // (e.g. "Naimish ko call karo and WhatsApp kholo" becoming "Open WhatsApp").
+        // Keep the original top transcription intact; planning belongs to the agent layer.
+        return matches.firstOrNull()?.trim().orEmpty()
     }
 
     fun testVoice(sampleText: String = "Namaste! Main SIA hoon, aapki personal AI assistant. Kaise help kar sakti hoon?") {
