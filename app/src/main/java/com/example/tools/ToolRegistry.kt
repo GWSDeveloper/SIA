@@ -56,7 +56,7 @@ object ToolRegistry {
         ),
         ToolDefinition(
             name = "web_search",
-            description = "Search the internet or Google for information, answers, queries, or topics.",
+            description = "Search the live web using the configured Tavily API and return source excerpts for answer synthesis.",
             parameters = listOf(
                 ToolParameter("query", "string", "The search query string")
             )
