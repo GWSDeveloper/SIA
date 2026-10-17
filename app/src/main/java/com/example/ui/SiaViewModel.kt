@@ -396,7 +396,9 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             } else when {
                 detail.startsWith("CALL_PERMISSION_REQUIRED:") -> "Number dialer mein khol diya hai. Call karne ke liye bas Call button daba dena."
                 detail.startsWith("CONTACT_PERMISSION_REQUIRED:") -> "Contacts access allow kar de, phir main contact dhoondh kar call laga dungi."
+                detail.startsWith("No exact contact match") -> "Is exact naam ka contact nahi mila. Naam ek baar check kar de."
                 detail.startsWith("MUSIC_PERMISSION_REQUIRED:") -> "Local music chalane ke liye phone ki audio permission allow kar de."
+                detail.startsWith("MEDIA_ACCESS_REQUIRED:") -> "Existing music app control karne ke liye Notification Access mein SIA ko allow kar de."
                 detail.startsWith("TAVILY_KEY_MISSING:") -> "Web search ke liye Settings mein Tavily API key add kar de."
                 isHindiOrHinglish(originalUserText) -> "Ye kaam abhi nahi ho paaya. Ek baar permission ya settings check kar le."
                 else -> "I couldn't complete that action. Please check the required permission or setting."
@@ -590,6 +592,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         if (message.startsWith("MUSIC_PERMISSION_REQUIRED:")) return "Local music chalane ke liye audio permission allow kar de."
         if (message.startsWith("CONTACT_PERMISSION_REQUIRED:")) return "Contacts access allow kar de, phir main call laga dungi."
         if (message.startsWith("CALL_PERMISSION_REQUIRED:")) return "Number dialer mein khol diya hai. Call karne ke liye Call button daba dena."
+        if (message.startsWith("Android opened the")) return "Settings khol di hain. Wahan se is setting ko on ya off kar de."
         return if (isHindiHinglish) {
             "Ye kaam abhi nahi ho paaya, bhai. Ek baar permission ya setting check kar le."
         } else {
