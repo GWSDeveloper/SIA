@@ -59,85 +59,59 @@ class AndroidActionExecutor(private val context: Context) {
     }
 
     private fun handleOpenApp(appName: String): ToolExecutionResult {
-        val query = appName.trim().lowercase(Locale.ROOT)
-        if (query.isEmpty()) {
+        val candidate = appName.trim()
+        if (candidate.isEmpty()) {
             return ToolExecutionResult(
                 status = ToolResultStatus.PERMANENT_ERROR,
                 message = "Please provide the name of the application you want to open."
             )
         }
 
-        // Map common app aliases
-        val directPackage = when (query) {
-            "youtube" -> "com.google.android.youtube"
-            "camera" -> {
-                val cameraIntent = Intent("android.media.action.IMAGE_CAPTURE").apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                if (cameraIntent.resolveActivity(context.packageManager) != null) {
-                    context.startActivity(cameraIntent)
-                    return ToolExecutionResult(ToolResultStatus.SUCCESS, "Opening Camera app.")
-                }
-                null
-            }
-            "chrome" -> "com.android.chrome"
-            "whatsapp" -> "com.whatsapp"
-            "spotify" -> "com.spotify.music"
-            "instagram", "insta" -> "com.instagram.android"
-            "chatgpt", "chat gpt" -> "com.openai.chatgpt"
-            "maps" -> "com.google.android.apps.maps"
-            "gmail" -> "com.google.android.gm"
-            "calculator" -> "com.google.android.calculator"
-            "clock" -> "com.google.android.deskclock"
-            "photos", "gallery" -> "com.google.android.apps.photos"
-            "settings" -> {
-                val intent = Intent(Settings.ACTION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-                return ToolExecutionResult(ToolResultStatus.SUCCESS, "Opening System Settings.")
-            }
-            else -> null
-        }
-
+        // Resolve only against the actual installed launcher labels. Never launch the first
+        // substring match: speech-recognition errors can otherwise open an unrelated app.
         val pm = context.packageManager
-        if (directPackage != null) {
-            val launchIntent = pm.getLaunchIntentForPackage(directPackage)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(launchIntent)
-                return ToolExecutionResult(ToolResultStatus.SUCCESS, "Opening $appName.")
-            }
-        }
+        val installedLabels = InstalledAppsHelper.getInstalledAppLabels(context)
+        val matchedLabel = InstalledAppsHelper.findMatchingInstalledApp(candidate, installedLabels)
+            ?: return ToolExecutionResult(
+                status = ToolResultStatus.PERMANENT_ERROR,
+                message = "I couldn't confidently match '$appName' to one installed app. Please say the app's displayed name."
+            )
 
-        // Search installed apps by label (supporting normalized spacing and punctuation)
-        val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+        val launcherIntent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
         }
-        val resolveInfos = pm.queryIntentActivities(mainIntent, 0)
-        val normQuery = query.replace(" ", "").replace("-", "").replace(".", "")
-        for (info in resolveInfos) {
-            val rawLabel = info.loadLabel(pm).toString()
-            val label = rawLabel.lowercase(Locale.ROOT)
-            val normLabel = label.replace(" ", "").replace("-", "").replace(".", "")
-            val pkg = info.activityInfo.packageName.lowercase(Locale.ROOT)
-            if (label.contains(query) || pkg.contains(query) || normLabel.contains(normQuery) || (normQuery.length >= 3 && normQuery.contains(normLabel))) {
-                val launchIntent = pm.getLaunchIntentForPackage(info.activityInfo.packageName)
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(launchIntent)
-                    return ToolExecutionResult(
-                        ToolResultStatus.SUCCESS,
-                        "Opening $rawLabel."
-                    )
-                }
-            }
+        val matches = try {
+            pm.queryIntentActivities(launcherIntent, 0).filter { info ->
+                runCatching { info.loadLabel(pm).toString().trim() }.getOrNull()
+                    ?.equals(matchedLabel, ignoreCase = true) == true
+            }.distinctBy { it.activityInfo.packageName }
+        } catch (_: Exception) {
+            emptyList()
         }
 
-        return ToolExecutionResult(
-            status = ToolResultStatus.PERMANENT_ERROR,
-            message = "Application '$appName' was not found on this device."
-        )
+        if (matches.size != 1) {
+            return ToolExecutionResult(
+                status = ToolResultStatus.PERMANENT_ERROR,
+                message = "More than one app matches '$matchedLabel', or its launcher isn't available. Please clarify the app."
+            )
+        }
+
+        return try {
+            val packageName = matches.single().activityInfo.packageName
+            val launchIntent = pm.getLaunchIntentForPackage(packageName)
+                ?: return ToolExecutionResult(
+                    status = ToolResultStatus.PERMANENT_ERROR,
+                    message = "The app '$matchedLabel' is installed but doesn't provide a launch screen."
+                )
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(launchIntent)
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Opening $matchedLabel.")
+        } catch (e: Exception) {
+            ToolExecutionResult(
+                status = ToolResultStatus.PERMANENT_ERROR,
+                message = "Could not open '$matchedLabel': ${e.message ?: "Android rejected the launch"}"
+            )
+        }
     }
 
     private fun handleWebSearch(query: String): ToolExecutionResult {

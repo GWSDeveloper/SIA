@@ -358,7 +358,7 @@ object ToolRegistry {
         val openVerbs = listOf(
             "open", "kholo", "khol do", "kholdo", "khol dena",
             "launch", "start", "run", "chalao", "chala do", "chalado", "chala dena",
-            "खोलो", "खोल दो", "चलाओ", "चला दो"
+            "खोलो", "खोल दो", "चलाओ", "चला दो", "ओपन"
         )
         val hasOpenVerb = openVerbs.any { raw.contains(it) }
         if (!hasOpenVerb) return null
@@ -366,7 +366,7 @@ object ToolRegistry {
         // Strip common polite and Hindi/Hinglish command suffixes/fillers and open verbs
         var clean = raw
             .replace(Regex("""\b(please|zara|bhai|kar dena|kardo|kar do|karo|karna|karein|kijiye|chala dena|chalado|chala do|chalao|khol dena|kholdo|khol do|kholo|open|launch|start|run|app|application|meri|mera)\b"""), " ")
-            .replace(Regex("""(खोलो|खोल दो|चलाओ|चला दो|कर दो|करो|चला देना)"""), " ")
+            .replace(Regex("""(खोलो|खोल दो|चलाओ|चला दो|कर दो|करो|चला देना|ओपन)"""), " ")
             .trim()
         clean = clean.replace(Regex("""\s+"""), " ").trim()
 

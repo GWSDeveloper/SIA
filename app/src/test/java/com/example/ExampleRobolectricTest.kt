@@ -159,6 +159,18 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `Hindi open verb is recognized without inventing an app target`() {
+        val knownTarget = ToolRegistry.resolveCommand("ओपन YouTube")
+        assertTrue(knownTarget is ToolRegistry.CommandResolution.LocalActions)
+        val action = (knownTarget as ToolRegistry.CommandResolution.LocalActions).actions.single()
+        assertEquals("open_app", action.toolName)
+        assertEquals("youtube", action.toolParams["app_name"])
+
+        val missingTarget = ToolRegistry.resolveCommand("ओपन")
+        assertTrue(missingTarget is ToolRegistry.CommandResolution.NeedsAiAgent)
+    }
+
+    @Test
     fun `open kardo without target forwards to AI agent`() {
         val res = ToolRegistry.resolveCommand("open kardo")
         assertTrue("open kardo must not open an app called kardo, should forward to AI agent", res is ToolRegistry.CommandResolution.NeedsAiAgent)
