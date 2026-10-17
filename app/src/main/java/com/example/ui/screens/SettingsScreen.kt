@@ -130,6 +130,9 @@ fun SettingsScreen(
     var isSarvamEnabled by remember { mutableStateOf(prefs.isSarvamTtsEnabled()) }
     var sarvamApiKeyInput by remember { mutableStateOf("") }
     var hasSarvamKeyConfigured by remember { mutableStateOf(prefs.getSarvamApiKey().isNotBlank()) }
+    var tavilyApiKeyInput by remember { mutableStateOf("") }
+    var hasTavilyKeyConfigured by remember { mutableStateOf(prefs.getTavilyApiKey().isNotBlank()) }
+    var isTavilyKeyVisible by remember { mutableStateOf(false) }
     val isUsingSarvam by viewModel.speechManager.isUsingSarvam.collectAsState()
     val sarvamStatus by viewModel.speechManager.sarvamStatusMessage.collectAsState()
 
@@ -746,6 +749,50 @@ fun SettingsScreen(
                             .testTag("settings_api_key_input")
                     )
                 }
+            }
+        }
+
+        // Web search provider configuration
+        item {
+            SettingsCard(title = "Web Search · Tavily", icon = Icons.Default.Key, accentColor = SiaCyan) {
+                Text(
+                    "SIA uses Tavily to search the web and retrieve answer context. Get a free key at app.tavily.com.",
+                    color = SiaTextSecondary,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = tavilyApiKeyInput,
+                    onValueChange = {
+                        tavilyApiKeyInput = it
+                        prefs.setTavilyApiKey(it)
+                        hasTavilyKeyConfigured = it.isNotBlank()
+                    },
+                    label = { Text("Tavily API Key", color = SiaTextSecondary) },
+                    placeholder = {
+                        Text(
+                            if (hasTavilyKeyConfigured) "Key configured (paste to replace)" else "Paste your Tavily API key",
+                            color = SiaTextMuted
+                        )
+                    },
+                    visualTransformation = if (isTavilyKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { isTavilyKeyVisible = !isTavilyKeyVisible }) {
+                            Icon(
+                                imageVector = if (isTavilyKeyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = "Toggle Tavily key visibility",
+                                tint = if (hasTavilyKeyConfigured) SiaGreen else SiaTextSecondary
+                            )
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SiaCyan,
+                        unfocusedBorderColor = SiaBorder,
+                        focusedTextColor = SiaTextPrimary,
+                        unfocusedTextColor = SiaTextPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth().testTag("settings_tavily_api_key_input")
+                )
             }
         }
 
