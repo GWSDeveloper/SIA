@@ -16,10 +16,7 @@ class MediaSessionAgent(private val context: Context) {
         val controllers = try {
             manager.getActiveSessions(ComponentName(context, SiaMediaNotificationListener::class.java))
         } catch (_: SecurityException) {
-            try {
-                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            } catch (_: Exception) {}
-            return ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "MEDIA_ACCESS_REQUIRED: Enable SIA under Notification Access, then try the media command again.")
+            return ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "MEDIA_ACCESS_REQUIRED: Enable SIA under Notification Access to control existing media apps.")
         } catch (_: Exception) {
             return null
         }
