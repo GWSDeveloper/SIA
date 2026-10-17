@@ -39,10 +39,10 @@ class GeminiProvider(
                         val paramList = tool.parameters.joinToString(", ") { "${it.name} (${it.type}): ${it.description}" }
                         append("- ${tool.name}($paramList): ${tool.description}\n")
                     }
-                    append("\nIf the user's intent requires actions, you can invoke one or multiple tools using this JSON format at the start of your response:")
-                    append("\n```tool_calls\n[{\"tool\": \"tool_name\", \"params\": {\"param_name\": \"value\"}}]\n```")
-                    append("\nMusic rule: route every music request through media_agent. Pass the user's requested song/artist/track wording as the query parameter; do not rely on hardcoded song names or local intent rules. For next/previous/pause/resume, use the matching action. Never claim playback succeeded unless the tool result says it succeeded.")
-                    append("\nWeb rule: for factual/current questions call web_agent with action=search and query containing the actual question. If the tool fails, report the diagnostic returned by the tool in simple language; do not pretend search succeeded.")
+                    append("\\nTool protocol: when tools are needed, emit exactly one tool_calls fenced block containing a JSON array of EVERY required tool call for the complete request. Each item is {\"tool\": \"registered_tool_name\", \"params\": { ... }}. Do not omit independent requested actions. Do not emit tools for ordinary greetings or casual conversation.")
+                    append("\\nMusic: route music intent through media_agent and derive query/action from the actual request and conversation context. No hardcoded track names or phrase matching. Only report playback success when execution results confirm it.")
+                    append("\\nCurrent/external facts: use web_agent(action=search, query=the actual question) for current prices, exchange rates, news, and other facts requiring retrieval. Do not open Google or a browser instead. Do not fabricate results or answer a tool-required request with a generic acknowledgement.")
+                    append("\\nCompound requests: include all required independent tool calls in the same array. The number of calls depends on intent, not a fixed count. After results return, choose any further necessary tools or provide the final answer. Never repeat completed calls or claim success before actual results confirm it.")
                     append("\nReply in Roman-script Hinglish by default when the user speaks Hinglish; reply in English when the user speaks English. Use Devanagari Hindi only when the user clearly speaks/writes in Hindi or requests it. Keep spoken replies concise and natural, and never include raw JSON in the spoken response.")
                 }
 
@@ -124,8 +124,25 @@ class GeminiProvider(
         val firstCandidate = candidates.getJSONObject(0)
         val content = firstCandidate.optJSONObject("content")
         val parts = content?.optJSONArray("parts")
-        val text = parts?.optJSONObject(0)?.optString("text") ?: ""
+        if (parts == null || parts.length() == 0) {
+            return LlmCallResult(textReply = "I could not get a usable response from the AI provider. Please try again.")
+        }
 
+        // Read every text part; a tool call or final answer may not be in parts[0].
+        val text = buildString {
+            for (i in 0 until parts.length()) {
+                val part = parts.optJSONObject(i) ?: continue
+                val partText = part.optString("text")
+                if (partText.isNotBlank()) {
+                    if (isNotEmpty()) append("\\n")
+                    append(partText)
+                }
+            }
+        }.trim()
+
+        if (text.isBlank()) {
+            return LlmCallResult(textReply = "I could not get a usable text response from the AI provider. Please try again.")
+        }
         return ToolCallParser.parse(text)
     }
 }
