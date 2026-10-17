@@ -40,7 +40,7 @@ class AndroidActionExecutor(private val context: Context) {
             when (name) {
                 "device_agent" -> handleDeviceAgent(params)
                 "app_agent" -> handleAppAgent(params)
-                "contact_agent" -> contactAgent.callContact(params["name"] ?: "")
+                "contact_agent" -> if (params["action"] == "call_number") contactAgent.callSpecificNumber(params["number"] ?: "") else contactAgent.callContact(params["name"] ?: "")
                 "web_agent", "web_search" -> webSearchAgent.search(params["query"] ?: "")
                 "media_agent" -> handleMediaAgent(params)
                 "reminder_agent" -> handleReminderAgent(params)
