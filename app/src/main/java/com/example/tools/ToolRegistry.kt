@@ -10,8 +10,8 @@ object ToolRegistry {
      * each agent owns its operation-specific validation and implementation.
      */
     fun getAgentTools(): List<ToolDefinition> = listOf(
-        ToolDefinition("device_agent", "Control device features. Discover supported operations with list_all_commands when needed.", listOf(
-            ToolParameter("action", "string", "torch_on, torch_off, wifi, bluetooth, mobile_data, hotspot, volume, brightness"),
+        ToolDefinition("device_agent", "Control torch and volume. Wi-Fi, Bluetooth, mobile data, hotspot, and brightness may open Android Settings because direct toggles are restricted. Torch needs Camera permission. Discover supported operations with list_all_commands.", listOf(
+            ToolParameter("action", "string", "torch_on, torch_off, wifi_on/off, bluetooth_on/off, mobile_data_on/off, hotspot_on/off, volume, brightness"),
             ToolParameter("state", "string", "Desired state on/off/toggle when relevant", false),
             ToolParameter("level", "number", "Volume percentage from 0 to 100", false)
         )),
@@ -19,20 +19,20 @@ object ToolRegistry {
             ToolParameter("action", "string", "open or close"),
             ToolParameter("app_name", "string", "Installed app name when action is open", false)
         )),
-        ToolDefinition("contact_agent", "Find an exact saved contact name and call it. Never call if the name is ambiguous.", listOf(
+        ToolDefinition("contact_agent", "Requires Contacts access; direct calling also needs Call Phone permission. Find an exact saved contact name and call it. Never call if the name is ambiguous; ask the user to choose.", listOf(
             ToolParameter("action", "string", "call"),
             ToolParameter("name", "string", "Exact contact display name")
         )),
-        ToolDefinition("web_agent", "Search the live web using Tavily and return source excerpts for answer synthesis. Do not open Google or a browser.", listOf(
+        ToolDefinition("web_agent", "Search the live web using the Tavily API key saved in Settings and return source excerpts for answer synthesis. Do not open Google or a browser.", listOf(
             ToolParameter("action", "string", "search"),
             ToolParameter("query", "string", "Question or search terms")
         )),
-        ToolDefinition("media_agent", "Play and control music stored locally on this phone; can also send media keys to an existing media app.", listOf(
+        ToolDefinition("media_agent", "Play music stored locally on this phone. Local playback needs audio permission; controlling another media app needs SIA Notification Access. Online streaming is not supported in this version.", listOf(
             ToolParameter("action", "string", "play, pause, resume, stop, next, previous, or control_existing"),
             ToolParameter("media_action", "string", "Existing app media key: play_pause, play, pause, next, previous", false),
             ToolParameter("query", "string", "Optional song title or artist to match in local files", false)
         )),
-        ToolDefinition("reminder_agent", "Create, inspect, or cancel persistent reminders.", listOf(
+        ToolDefinition("reminder_agent", "Create, inspect, or cancel persistent reminders. Notification permission is needed for alerts; exact alarm access affects timing precision.", listOf(
             ToolParameter("action", "string", "create, list, or cancel"),
             ToolParameter("description", "string", "Reminder description", false),
             ToolParameter("delay_minutes", "number", "Minutes from now", false),
