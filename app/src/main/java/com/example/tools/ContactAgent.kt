@@ -40,18 +40,47 @@ class ContactAgent(private val context: Context) {
         }
 
         val match = uniqueNumbers.single()
-        return try {
-            val number = match.second
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
-                context.startActivity(Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                ToolExecutionResult(ToolResultStatus.SUCCESS, "Call started for ${match.first}.")
-            } else {
-                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                ToolExecutionResult(ToolResultStatus.USER_CONFIRMATION_REQUIRED, "CALL_PERMISSION_REQUIRED: Opened the dialer for ${match.first}; tap Call to continue.")
-            }
-        } catch (_: Exception) {
-            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Android could not start the call.")
+        return startCall(match.first, match.second)
+    }
+
+    fun callSpecificNumber(numberInput: String): ToolExecutionResult {
+        val requestedDigits = numberInput.filter(Char::isDigit)
+        if (requestedDigits.length < 7) return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Please choose one of the listed phone numbers.")
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            return ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "CONTACT_PERMISSION_REQUIRED: Allow Contacts access.")
         }
+        val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER)
+        var selected: Pair<String, String>? = null
+        context.contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, projection, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+            val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+            if (nameIndex >= 0 && numberIndex >= 0) while (cursor.moveToNext()) {
+                val displayName = cursor.getString(nameIndex)?.trim().orEmpty()
+                val number = cursor.getString(numberIndex)?.trim().orEmpty()
+                val digits = number.filter(Char::isDigit)
+                if (displayName.isNotBlank() && digits.isNotBlank() &&
+                    (digits == requestedDigits || digits.endsWith(requestedDigits) || requestedDigits.endsWith(digits))) {
+                    if (selected != null && normalize(selected!!.second) != normalize(number)) {
+                        return ToolExecutionResult(ToolResultStatus.USER_CONFIRMATION_REQUIRED, "More than one saved number matches that choice. Please specify more digits.")
+                    }
+                    selected = displayName to number
+                }
+            }
+        }
+        val match = selected ?: return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "That number is no longer available in contacts.")
+        return startCall(match.first, match.second)
+    }
+
+    private fun startCall(displayName: String, number: String): ToolExecutionResult = try {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            context.startActivity(Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Call started for $displayName.")
+        } else {
+            context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            ToolExecutionResult(ToolResultStatus.USER_CONFIRMATION_REQUIRED, "CALL_PERMISSION_REQUIRED: Opened the dialer for $displayName; tap Call to continue.")
+        }
+    } catch (_: Exception) {
+        ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Android could not start the call.")
     }
 
     private fun transliterated(value: String): String = try {
