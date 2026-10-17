@@ -48,7 +48,7 @@ class LocalMusicPlayer(private val context: Context) {
                 }
                 "previous", "prev" -> {
                     if (queue.isEmpty()) loadQueue("")
-                    if (queue.isEmpty()) ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "No local music files were found.") else startTrack((currentIndex - 1 + queue.size).mod(queue.size))
+                    if (queue.isEmpty()) ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "No local music files were found.") else startTrack(if (currentIndex < 0) queue.lastIndex else (currentIndex - 1 + queue.size).mod(queue.size))
                 }
                 else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Unsupported local music action.")
             }
