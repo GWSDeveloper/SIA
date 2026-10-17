@@ -494,7 +494,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         if (isHindiHinglish) {
             val phrases = successList.map { (call, _) ->
                 when (call.toolName) {
-                    "device_agent" -> "Haan, device setting ke liye supported action kar diya."
+                    "device_agent" -> "Haan, device setting handle kar di."
                     "app_agent" -> if (call.toolParams["action"] == "close") "Chalo, home screen par aa gayi." else "${call.toolParams["app_name"] ?: "App"} khol diya."
                     "contact_agent" -> "Call laga rahi hoon."
                     "media_agent" -> when (call.toolParams["action"]?.lowercase(Locale.ROOT)) {
@@ -504,7 +504,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                         "previous" -> "Pichhla local gaana chala diya."
                         else -> "Music chala diya."
                     }
-                    "reminder_agent" -> "Reminder set kar diya."
+                    "reminder_agent" -> "Reminder laga diya."
                     "web_agent" -> "Web search kar liya."
                     "toggle_torch" -> {
                         val isOff = call.toolParams["state"] == "off"
@@ -590,6 +590,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val message = first?.second?.message.orEmpty()
         if (message.startsWith("TAVILY_KEY_MISSING:")) return "Web search ke liye Settings mein Tavily API key add kar de."
         if (message.startsWith("MUSIC_PERMISSION_REQUIRED:")) return "Local music chalane ke liye audio permission allow kar de."
+        if (message.startsWith("MEDIA_ACCESS_REQUIRED:")) return "Existing music app control karne ke liye Notification Access mein SIA ko allow kar de."
         if (message.startsWith("CONTACT_PERMISSION_REQUIRED:")) return "Contacts access allow kar de, phir main call laga dungi."
         if (message.startsWith("CALL_PERMISSION_REQUIRED:")) return "Number dialer mein khol diya hai. Call karne ke liye Call button daba dena."
         if (message.startsWith("Android opened the")) return "Settings khol di hain. Wahan se is setting ko on ya off kar de."
