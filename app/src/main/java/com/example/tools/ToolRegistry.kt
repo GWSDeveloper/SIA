@@ -5,6 +5,46 @@ import java.util.Locale
 
 object ToolRegistry {
 
+    /**
+     * Compact agent-facing API. The orchestrator exposes these stable function names;
+     * each agent owns its operation-specific validation and implementation.
+     */
+    fun getAgentTools(): List<ToolDefinition> = listOf(
+        ToolDefinition("device_agent", "Control device features. Discover supported operations with list_all_commands when needed.", listOf(
+            ToolParameter("action", "string", "torch_on, torch_off, wifi, bluetooth, mobile_data, hotspot, volume, brightness"),
+            ToolParameter("state", "string", "Desired state on/off/toggle when relevant", false),
+            ToolParameter("level", "number", "Volume percentage from 0 to 100", false)
+        )),
+        ToolDefinition("app_agent", "Open an installed app or return to the launcher. Android does not permit third-party force-stopping arbitrary apps.", listOf(
+            ToolParameter("action", "string", "open or close"),
+            ToolParameter("app_name", "string", "Installed app name when action is open", false)
+        )),
+        ToolDefinition("contact_agent", "Find an exact saved contact name and call it. Never call if the name is ambiguous.", listOf(
+            ToolParameter("action", "string", "call"),
+            ToolParameter("name", "string", "Exact contact display name")
+        )),
+        ToolDefinition("web_agent", "Search the live web using Tavily and return source excerpts for answer synthesis. Do not open Google or a browser.", listOf(
+            ToolParameter("action", "string", "search"),
+            ToolParameter("query", "string", "Question or search terms")
+        )),
+        ToolDefinition("media_agent", "Play and control music stored locally on this phone; can also send media keys to an existing media app.", listOf(
+            ToolParameter("action", "string", "play, pause, resume, stop, next, previous, or control_existing"),
+            ToolParameter("query", "string", "Optional song title or artist to match in local files", false)
+        )),
+        ToolDefinition("reminder_agent", "Create, inspect, or cancel persistent reminders.", listOf(
+            ToolParameter("action", "string", "create, list, or cancel"),
+            ToolParameter("description", "string", "Reminder description", false),
+            ToolParameter("delay_minutes", "number", "Minutes from now", false),
+            ToolParameter("task_id", "string", "Existing reminder ID for cancellation or status", false)
+        )),
+        ToolDefinition("list_all_commands", "Discover supported operations, permissions and platform limitations.", emptyList()),
+        ToolDefinition("create_workspace_note", "Save a note in the SIA workspace.", listOf(
+            ToolParameter("title", "string", "Note title"),
+            ToolParameter("content", "string", "Note contents")
+        )),
+        ToolDefinition("export_app_apk", "Open the installed SIA APK export/share flow.", emptyList())
+    )
+
     fun getAllTools(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "open_app",
