@@ -114,6 +114,14 @@ class AndroidActionExecutor(private val context: Context) {
     private fun handleMediaAgent(params: Map<String, String>): ToolExecutionResult {
         val action = params["action"]?.lowercase(Locale.ROOT).orEmpty()
         val query = params["query"]?.trim().orEmpty()
+        if (action == "play" && query.isBlank()) {
+            // A requested song title must be present before starting playback. Otherwise the
+            // active media session may resume an unrelated track and falsely satisfy the request.
+            return ToolExecutionResult(
+                ToolResultStatus.PERMANENT_ERROR,
+                "A specific song query is required to play a named track. No track was started."
+            )
+        }
         if (action in setOf("play", "resume") && query.isNotBlank()) {
             return localMusicPlayer.control("play", query)
         }
