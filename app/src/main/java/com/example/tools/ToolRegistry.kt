@@ -336,6 +336,20 @@ object ToolRegistry {
         }
 
         // 4. Target: Media Playback
+        // Capture named-song requests before the generic "play music" fallback.
+        // STT often emits Hindi in Devanagari, so remove common command filler in both scripts
+        // and pass only the likely title to the media agent.
+        val asksForNamedSong = (raw.contains("music") || raw.contains("song") || raw.contains("gana") ||
+            raw.contains("gaana") || raw.contains("गाना") || raw.contains("गाने") ||
+            raw.contains("म्यूजिक") || raw.contains("सॉन्ग") || raw.contains("प्ले") ||
+            raw.contains("बजाओ") || raw.contains("चलाओ")) &&
+            (raw.contains("play") || raw.contains("bajao") || raw.contains("chalao") ||
+             raw.contains("bajaa") || raw.contains("प्ले") || raw.contains("बजाओ") ||
+             raw.contains("चलाओ") || raw.contains("सुना"))
+        if (asksForNamedSong) {
+            val title = extractSongQuery(raw)
+            if (title.isNotBlank()) return SingleToolCall("media_agent", mapOf("action" to "play", "query" to title))
+        }
         if (raw.contains("next song") || raw.contains("next track") || raw.contains("agla gana") || raw.contains("play next")) {
             return SingleToolCall("media_agent", mapOf("action" to "next"))
         }
@@ -387,6 +401,22 @@ object ToolRegistry {
         }
 
         return null
+    }
+
+    private fun extractSongQuery(raw: String): String {
+        val commandWords = listOf(
+            "please", "play", "music", "song", "gana", "gaana", "bajao", "bajaa", "chalao", "chala",
+            "sunao", "suna", "named", "name", "se", "ko", "ka", "ki", "ke", "wala", "wali", "waala",
+            "kar", "karo", "do", "de", "dena", "isko", "use", "usko", "mere", "mera", "meri",
+            "the", "on", "my", "now", "please", "गाना", "गाने", "म्यूजिक", "सॉन्ग", "प्ले", "बजाओ",
+            "चलाओ", "सुनाओ", "सुन", "करो", "कर", "दो", "दे", "देना", "इसे", "इसे", "उसे", "उसको",
+            "नाम", "से", "वाला", "वाली", "का", "की", "के", "मेरा", "मेरी", "म्यूज़िक", "गाना"
+        )
+        val devanagariCleaned = raw.replace(Regex("[,!?।]+"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() && it !in commandWords }
+            .joinToString(" ")
+        return devanagariCleaned.trim()
     }
 
     private fun matchAppOpenIntent(raw: String): SingleToolCall? {
