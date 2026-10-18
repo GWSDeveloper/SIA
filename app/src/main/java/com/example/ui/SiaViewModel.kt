@@ -177,8 +177,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 listOf("second", "2nd", "number two", "doosra", "dusra", "सेकंड", "दूसरा", "दूसरे").any { lowerChoice.contains(it) } -> pendingChoices.getOrNull(1)
                 listOf("first", "1st", "number one", "pehla", "पहला", "पहली", "फर्स्ट").any { lowerChoice.contains(it) } -> pendingChoices.firstOrNull()
-                else -> null
-            }
+                else -> null            }
             if (selected != null) {
                 pendingContactChoices = emptyList()
                 viewModelScope.launch {
@@ -357,8 +356,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         explicitSpokenText: String?,
         planningContext: PromptContext
     ) {
-        _visualState.value = AssistantVisualState.EXECUTING
-        val executionResults = mutableListOf<Pair<SingleToolCall, ToolExecutionResult>>()
+        _visualState.value = AssistantVisualState.EXECUTING        val executionResults = mutableListOf<Pair<SingleToolCall, ToolExecutionResult>>()
         val seenCalls = mutableSetOf<String>()
         var pendingCalls = toolCalls
         var finalModelText = explicitSpokenText.orEmpty()
@@ -473,7 +471,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
         // Surface ambiguous contact matches as a clarification, without exposing technical errors.
         val ambiguousContactResult = executionResults.firstOrNull {
-            it.first.toolName == "contact_agent" && it.second.message.startsWith("AMBIGUOUS_CONTACTS:")
+            it.first.toolName in setOf("contact_agent", "call") && it.second.message.startsWith("AMBIGUOUS_CONTACTS:")
         }
         if (ambiguousContactResult != null) {
             val rawOptions = ambiguousContactResult.second.message.substringAfter("Ask which one to call: ", "")
@@ -484,7 +482,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val contactIssue = executionResults.firstOrNull {
-            it.first.toolName == "contact_agent" && it.second.status != ToolResultStatus.SUCCESS
+            it.first.toolName in setOf("contact_agent", "call") && it.second.status != ToolResultStatus.SUCCESS
         }
         if (contactIssue != null && executionResults.none { it.second.status == ToolResultStatus.SUCCESS }) {
             val detail = contactIssue.second.message
@@ -524,9 +522,10 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val failedResults = executionResults.filter { it.second.status != ToolResultStatus.SUCCESS }
 
         val hasNamedMusicPlay = executionResults.any { (call, _) ->
-            call.toolName == "media_agent" &&
-                call.toolParams["action"]?.lowercase(Locale.ROOT) in setOf("play", "resume") &&
-                !call.toolParams["query"].isNullOrBlank()
+            (call.toolName == "play_music" && !call.toolParams["query"].isNullOrBlank()) ||
+                (call.toolName == "media_agent" &&
+                    call.toolParams["action"]?.lowercase(Locale.ROOT) in setOf("play", "resume") &&
+                    !call.toolParams["query"].isNullOrBlank())
         }
         val hasWebSearch = executionResults.any { it.first.toolName in setOf("web_agent", "web_search") }
         val genericWebAcknowledgement = finalModelText.isBlank() || finalModelText.contains("web search kar liya", ignoreCase = true) ||
@@ -537,8 +536,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             synthesizeSuccessConfirmation(successResults, isHindiHinglish)
         } else if (hasWebSearch && genericWebAcknowledgement) {
             if (isHindiHinglish) {
-                "Search results mil gaye, lekin main unse tumhare sawaal ka reliable jawab verify nahi kar paayi. Main guess nahi karungi."
-            } else {
+                "Search results mil gaye, lekin main unse tumhare sawaal ka reliable jawab verify nahi kar paayi. Main guess nahi karungi."            } else {
                 "I retrieved search results, but couldn't verify a reliable answer to your question from them. I won't guess."
             }
         } else if (failedResults.isEmpty()) {
@@ -717,8 +715,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun synthesizeFailureConfirmation(
         failedList: List<Pair<SingleToolCall, ToolExecutionResult>>,
-        isHindiHinglish: Boolean
-    ): String {
+        isHindiHinglish: Boolean    ): String {
         val first = failedList.firstOrNull()
         val message = first?.second?.message.orEmpty()
         if (message.startsWith("TAVILY_KEY_MISSING:")) return "Web search ke liye Settings mein Tavily API key add kar de."
