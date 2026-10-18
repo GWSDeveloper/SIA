@@ -52,6 +52,34 @@ class ExampleRobolectricTest {
         assertTrue(names.contains("user_perma_memory"))
         assertFalse(names.contains("device_agent"))
         assertFalse(names.contains("app_agent"))
+        assertFalse(names.contains("contact_agent"))
+        assertFalse(names.contains("media_agent"))
+        assertFalse(names.contains("web_agent"))
+    }
+
+    @Test
+    fun `compound tool protocol preserves nested parameter text and every action`() {
+        val raw = """Preparing the requested actions.
+```tool_calls
+[{"tool":"send_sms","params":{"number":"1234567890","message":"Hello {friend}, use } carefully"}},{"tool":"open_app","params":{"app_name":"WhatsApp"}}]
+```
+"""
+        val parsed = ToolCallParser.parse(raw)
+
+        assertEquals(2, parsed.toolCalls.size)
+        assertEquals("send_sms", parsed.toolCalls[0].toolName)
+        assertEquals("Hello {friend}, use } carefully", parsed.toolCalls[0].toolParams["message"])
+        assertEquals("WhatsApp", parsed.toolCalls[1].toolParams["app_name"])
+        assertEquals("Preparing the requested actions.", parsed.textReply)
+    }
+
+    @Test
+    fun `ordinary JSON with a name field is not treated as a tool call`() {
+        val raw = """{"name":"Shantanu","age":18}"""
+        val parsed = ToolCallParser.parse(raw)
+
+        assertTrue(parsed.toolCalls.isEmpty())
+        assertEquals(raw, parsed.textReply)
     }
 
     @Test
