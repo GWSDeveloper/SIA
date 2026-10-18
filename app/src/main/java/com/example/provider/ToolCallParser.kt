@@ -121,13 +121,16 @@ object ToolCallParser {
     }
 
     private fun parseSingleToolObject(obj: JSONObject): SingleToolCall? {
-        val toolName = obj.optString("tool").ifBlank { obj.optString("name") }
-        if (toolName.isBlank()) return null
-
-        val params = obj.optJSONObject("params")
+        val suppliedParams = obj.optJSONObject("params")
             ?: obj.optJSONObject("arguments")
             ?: obj.optJSONObject("input")
-            ?: JSONObject()
+        // A generic JSON object with a "name" field is not automatically a tool call.
+        // Accept the "name" alias only when an explicit argument object is present.
+        val toolName = obj.optString("tool").ifBlank {
+            if (suppliedParams != null) obj.optString("name") else ""
+        }
+        if (toolName.isBlank()) return null
+        val params = suppliedParams ?: JSONObject()
         val map = mutableMapOf<String, String>()
         val keys = params.keys()
         while (keys.hasNext()) {
