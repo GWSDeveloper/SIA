@@ -9,41 +9,67 @@ object ToolRegistry {
      * Compact agent-facing API. The orchestrator exposes these stable function names;
      * each agent owns its operation-specific validation and implementation.
      */
+    /**
+     * The LLM sees simple, individual functions rather than broad agent/router tools.
+     * Only capabilities with an executor implementation are advertised here.
+     */
     fun getAgentTools(): List<ToolDefinition> = listOf(
-        ToolDefinition("device_agent", "Control supported device settings and hardware features. Choose the requested operation and pass its required arguments. Some Android settings may require user permission or opening system settings; torch control requires Camera permission.", listOf(
-            ToolParameter("action", "string", "Supported operation, such as torch_on, torch_off, wifi_on/off, bluetooth_on/off, mobile_data_on/off, hotspot_on/off, volume, or brightness"),
-            ToolParameter("state", "string", "Requested state or mode when the operation uses one", false),
-            ToolParameter("level", "number", "Target percentage from 0 to 100 when the operation uses a level", false)
+        ToolDefinition("toggle_torch", "Turn the phone flashlight on, off, or toggle it.", listOf(
+            ToolParameter("state", "string", "on, off, or toggle")
+        ), requiredPermissions = listOf("CAMERA")),
+        ToolDefinition("set_brightness", "Set screen brightness. May request Modify System Settings permission.", listOf(
+            ToolParameter("level", "number", "Brightness percentage from 0 to 100")
         )),
-        ToolDefinition("app_agent", "Open an installed app or return to the launcher. Android does not permit third-party force-stopping arbitrary apps.", listOf(
-            ToolParameter("action", "string", "open or close"),
-            ToolParameter("app_name", "string", "Installed app name when action is open", false)
+        ToolDefinition("set_volume", "Set music/media volume.", listOf(
+            ToolParameter("level", "number", "Volume percentage from 0 to 100")
         )),
-        ToolDefinition("contact_agent", "Requires Contacts access; direct calling also needs Call Phone permission. Find an exact saved contact name and call it. Never call if the name is ambiguous; ask the user to choose.", listOf(
-            ToolParameter("action", "string", "call"),
-            ToolParameter("name", "string", "Exact contact display name")
+        ToolDefinition("toggle_wifi", "Open Wi-Fi settings because Android may restrict direct Wi-Fi toggling for ordinary apps.", listOf(
+            ToolParameter("state", "string", "on or off")
         )),
-        ToolDefinition("web_agent", "Search the live web using the Tavily API key saved in Settings and return source excerpts for answer synthesis. Do not open Google or a browser.", listOf(
-            ToolParameter("action", "string", "search"),
+        ToolDefinition("toggle_bluetooth", "Open Bluetooth settings because direct toggling may be restricted by Android.", listOf(
+            ToolParameter("state", "string", "on or off")
+        )),
+        ToolDefinition("toggle_mobile_data", "Open mobile network settings; ordinary apps generally cannot toggle mobile data directly.", listOf(
+            ToolParameter("state", "string", "on or off")
+        )),
+        ToolDefinition("open_app", "Open one installed app by its displayed name.", listOf(
+            ToolParameter("app_name", "string", "Installed app name")
+        )),
+        ToolDefinition("close_app", "Return to the Android home screen. Android does not allow force-stopping arbitrary apps.", emptyList()),
+        ToolDefinition("call", "Call a saved contact by exact name or a phone number. Ambiguous contacts must be clarified.", listOf(
+            ToolParameter("name", "string", "Saved contact name or phone number")
+        )),
+        ToolDefinition("web_search", "Search the live web with Tavily and return source evidence for answering the user's question.", listOf(
             ToolParameter("query", "string", "Question or search terms")
         )),
-        ToolDefinition("media_agent", "Play music stored locally on this phone. Local playback needs audio permission; controlling another media app needs SIA Notification Access. Online streaming is not supported in this version.", listOf(
-            ToolParameter("action", "string", "play, pause, resume, stop, next, previous, or control_existing"),
-            ToolParameter("media_action", "string", "Existing app media key: play_pause, play, pause, next, previous", false),
-            ToolParameter("query", "string", "Optional song title or artist to match in local files", false)
+        ToolDefinition("play_music", "Play a specifically requested song from local music files. Do not substitute an unrelated song.", listOf(
+            ToolParameter("query", "string", "Song title or artist")
         )),
-        ToolDefinition("reminder_agent", "Create, inspect, or cancel persistent reminders. Notification permission is needed for alerts; exact alarm access affects timing precision.", listOf(
-            ToolParameter("action", "string", "create, list, or cancel"),
-            ToolParameter("description", "string", "Reminder description", false),
+        ToolDefinition("play", "Resume or play existing media.", emptyList()),
+        ToolDefinition("pause", "Pause current media playback.", emptyList()),
+        ToolDefinition("stop", "Stop current media playback.", emptyList()),
+        ToolDefinition("next", "Skip to the next media track.", emptyList()),
+        ToolDefinition("previous", "Go to the previous media track.", emptyList()),
+        ToolDefinition("open_system_settings", "Open a relevant Android settings screen.", listOf(
+            ToolParameter("type", "string", "wifi, bluetooth, sound, display, apps, battery, mobile_data, or general")
+        )),
+        ToolDefinition("schedule_task", "Create a reminder for a future time or delay.", listOf(
+            ToolParameter("description", "string", "Reminder description"),
             ToolParameter("delay_minutes", "number", "Minutes from now", false),
-            ToolParameter("task_id", "string", "Existing reminder ID for cancellation or status", false)
+            ToolParameter("action_type", "string", "Usually REMINDER", false)
         )),
-        ToolDefinition("list_all_commands", "Discover supported operations, permissions and platform limitations.", emptyList()),
-        ToolDefinition("create_workspace_note", "Save a note in the SIA workspace.", listOf(
+        ToolDefinition("get_task_status", "Check pending reminders or a specific task.", listOf(
+            ToolParameter("task_id", "string", "Optional task ID", false)
+        )),
+        ToolDefinition("cancel_scheduled_task", "Cancel a scheduled reminder.", listOf(
+            ToolParameter("task_id", "string", "Task ID")
+        )),
+        ToolDefinition("create_workspace_note", "Save a text note in SIA's workspace.", listOf(
             ToolParameter("title", "string", "Note title"),
-            ToolParameter("content", "string", "Note contents")
+            ToolParameter("content", "string", "Note content")
         )),
-        ToolDefinition("export_app_apk", "Open the installed SIA APK export/share flow.", emptyList())
+        ToolDefinition("export_app_apk", "Open SIA's APK export/share flow.", emptyList()),
+        ToolDefinition("list_all_commands", "List the capabilities available in this build.", emptyList())
     )
 
     fun getAllTools(): List<ToolDefinition> = listOf(
@@ -146,8 +172,7 @@ object ToolRegistry {
         class MultiAction(actions: List<SingleToolCall>) : LocalActions(actions) {
             override fun toString(): String = "MultiAction(actions=$actions)"
         }
-        object NeedsAiAgent : CommandResolution() {
-            override fun toString(): String = "NeedsAiAgent"
+        object NeedsAiAgent : CommandResolution() {            override fun toString(): String = "NeedsAiAgent"
         }
 
         val allActions: List<SingleToolCall>
@@ -297,7 +322,6 @@ object ToolRegistry {
 
             val isOn = onKeywords.any { raw.contains(it) }
             val isOff = offKeywords.any { raw.contains(it) }
-
             if (isOff) {
                 return SingleToolCall("toggle_torch", mapOf("state" to "off"))
             }
