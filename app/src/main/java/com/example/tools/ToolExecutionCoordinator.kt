@@ -44,10 +44,14 @@ class ToolExecutionCoordinator(
 
         while (pendingCalls.isNotEmpty() && rounds < maxRounds) {
             rounds++
-            val callsToRun = pendingCalls.distinctBy(::signature).filter { call ->
+            // Suppress repeated playback requests even when the model changes the query slightly.
+            val callsToRun = pendingCalls.distinctBy(::signature)
+                .distinctBy { call -> if (call.toolName == "play_music") "play_music" else signature(call) }
+                .filter { call ->
                 val key = signature(call)
                 val previous = executionResults.lastOrNull { signature(it.first) == key }?.second
                 when {
+                    previous == null && call.toolName == "play_music" && executionResults.any { it.first.toolName == "play_music" && it.second.status == ToolResultStatus.SUCCESS } -> false
                     previous == null -> true
                     previous.status == ToolResultStatus.RETRYABLE_ERROR ->
                         (attemptsBySignature[key] ?: 1) < 3

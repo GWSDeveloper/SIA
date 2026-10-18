@@ -112,4 +112,22 @@ class ExampleRobolectricTest {
         prefs.setWakeWordPhrase("Hey SIA")
         prefs.setStopPhrase("Stop listening")
     }
+
+    @Test
+    fun `shared system prompt includes current device date and timezone guidance`() {
+        val prompt = com.example.provider.SiaSystemPrompt.build("SIA")
+        assertTrue(prompt.contains("CURRENT DEVICE DATE/TIME:"))
+        assertTrue(prompt.contains("timezone:"))
+        assertTrue(prompt.contains("Never use a date from conversation history as today"))
+        assertTrue(prompt.contains("anchor date-sensitive queries"))
+    }
+
+    @Test
+    fun `malformed tool protocol never leaks raw fenced syntax into chat`() {
+        val parsed = ToolCallParser.parse("```tool_calls\n[```")
+        assertTrue(parsed.toolCalls.isEmpty())
+        assertFalse(parsed.textReply.contains("tool_calls"))
+        assertTrue(parsed.textReply.isNotBlank())
+    }
+
 }

@@ -50,7 +50,7 @@ class WebSearchAgent(context: Context) {
                     val body = item.optString("content").trim()
                     if (title.isNotBlank() || body.isNotBlank()) excerpts.add("Source: $title\nURL: $url\nExcerpt: $body")
                 }
-                if (excerpts.isEmpty()) ToolExecutionResult(ToolResultStatus.SUCCESS, "No useful web results were returned for '$cleanQuery'.")
+                if (excerpts.isEmpty()) ToolExecutionResult(ToolResultStatus.RETRYABLE_ERROR, "No useful web results were returned for '$cleanQuery'. The search did not verify an answer; retry with a more specific, date-anchored query.")
                 else ToolExecutionResult(ToolResultStatus.SUCCESS, "Web search results for: $cleanQuery\n\n" + excerpts.joinToString("\n\n"), data = mapOf("query" to cleanQuery, "result_count" to (results?.length() ?: 0).toString()))
             }
         } catch (_: IOException) {
