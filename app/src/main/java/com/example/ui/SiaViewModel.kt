@@ -605,7 +605,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
     ): String {
         val succText = successList.joinToString(", ") { formatHumanReadableActionBadge(it.first, it.second) }
         return if (isHindiHinglish) {
-            "$succText हो गया, लेकिन एक काम पूरा नहीं हो पाया।"
+            "Kuch actions complete ho gaye ($succText), lekin ek action complete nahi ho paaya."
         } else {
             "$succText completed, but one action could not be completed."
         }
