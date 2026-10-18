@@ -290,9 +290,16 @@ class AndroidActionExecutor(private val context: Context) {
                     status = ToolResultStatus.PERMANENT_ERROR,
                     message = "The app '$matchedLabel' is installed but doesn't provide a launch screen."
                 )
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            launchIntent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+            )
             context.startActivity(launchIntent)
-            ToolExecutionResult(ToolResultStatus.SUCCESS, "Opening $matchedLabel.")
+            // startActivity returning only confirms Android accepted the launch request;
+            // the OS may still keep an overlay/service in front. Avoid claiming that the
+            // target is definitely visible to the user.
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Sent Android a launch request for $matchedLabel.")
         } catch (e: Exception) {
             ToolExecutionResult(
                 status = ToolResultStatus.PERMANENT_ERROR,
