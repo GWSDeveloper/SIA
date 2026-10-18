@@ -527,7 +527,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     "toggle_torch" -> if (call.toolParams["state"] == "off") "torch band kar di" else "torch on kar di"
                     "set_brightness" -> "brightness $level percent kar di"
                     "set_volume" -> "volume $level percent kar diya"
-                    "open_app" -> "$requestedName khol diya"
+                    "open_app" -> "$requestedName launch karne ki request bhej di"
                     "close_app" -> "home screen par aa gayi"
                     "open_camera" -> "camera khol diya"
                     "vibrate" -> "phone vibrate kar diya"
@@ -555,7 +555,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     "toggle_torch" -> if (call.toolParams["state"] == "off") "turned off the flashlight" else "turned on the flashlight"
                     "set_brightness" -> "set brightness to $level percent"
                     "set_volume" -> "set volume to $level percent"
-                    "open_app" -> "opened $requestedName"
+                    "open_app" -> "sent a launch request for $requestedName"
                     "close_app" -> "returned to the home screen"
                     "open_camera" -> "opened the camera"
                     "vibrate" -> "vibrated the phone"
@@ -635,7 +635,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun formatHumanReadableActionBadge(call: SingleToolCall, res: ToolExecutionResult): String {
         return when (call.toolName) {
-            "open_app" -> "Opened ${call.toolParams["app_name"] ?: "App"}"
+            "open_app" -> "Launch requested: ${call.toolParams["app_name"] ?: "App"}"
             "toggle_torch" -> if (call.toolParams["state"] == "off") "Flashlight Off" else "Flashlight On"
             "set_volume" -> "Volume ${call.toolParams["level"] ?: "50"}%"
             "control_media" -> "Media: ${call.toolParams["action"] ?: "Play"}"
