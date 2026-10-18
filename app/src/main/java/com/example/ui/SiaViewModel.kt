@@ -399,7 +399,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                 if (phrased.isSuccess && phrased.getOrThrow().toolCalls.isEmpty() && phrased.getOrThrow().textReply.isNotBlank()) phrased.getOrThrow().textReply
                 else "Is naam ke multiple numbers mile hain. Kisko call karun? " + detail.substringAfter("Ask which one to call: ")
             } else when {
-                detail.startsWith("CALL_PERMISSION_REQUIRED:") -> "Number dialer mein khol diya hai. Call karne ke liye bas Call button daba dena."
+                detail.startsWith("CALL_CONFIRMATION_REQUIRED:") || detail.startsWith("CALL_PERMISSION_REQUIRED:") -> "Dialer khol diya hai. Call abhi nahi lagi hai—number check karke Call button dabana."
                 detail.startsWith("CONTACT_PERMISSION_REQUIRED:") -> "Contacts access allow kar de, phir main contact dhoondh kar call laga dungi."
                 detail.startsWith("No exact contact match") -> "Is exact naam ka contact nahi mila. Naam ek baar check kar de."
                 detail.startsWith("MUSIC_PERMISSION_REQUIRED:") -> "Local music chalane ke liye phone ki audio permission allow kar de."
