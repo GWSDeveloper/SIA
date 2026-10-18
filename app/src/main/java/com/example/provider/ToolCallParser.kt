@@ -139,6 +139,11 @@ object ToolCallParser {
             map[key] = when (value) {
                 null, JSONObject.NULL -> ""
                 is JSONObject, is JSONArray -> value.toString()
+                is Number -> {
+                    val number = value.toDouble()
+                    if (number.isFinite() && number % 1.0 == 0.0) number.toLong().toString()
+                    else value.toString()
+                }
                 else -> value.toString()
             }
         }
