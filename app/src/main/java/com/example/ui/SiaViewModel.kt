@@ -514,100 +514,86 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         successList: List<Pair<SingleToolCall, ToolExecutionResult>>,
         isHindiHinglish: Boolean
     ): String {
-        if (isHindiHinglish) {
-            val phrases = successList.map { (call, _) ->
+        val phrases = successList.map { (call, result) ->
+            val level = call.toolParams["level"] ?: "50"
+            val requestedName = call.toolParams["app_name"] ?: "app"
+            val actualTrack = Regex("""Now playing local track: (.+?) by (.+?)\.""")
+                .find(result.message)?.groupValues?.getOrNull(1)
+            val calledName = result.message.substringAfter("Call started for ", "")
+                .substringBefore(".").ifBlank { call.toolParams["name"] ?: "contact" }
+
+            if (isHindiHinglish) {
                 when (call.toolName) {
-                    "device_agent" -> "Haan, device setting handle kar di."
-                    "app_agent" -> if (call.toolParams["action"] == "close") "Chalo, home screen par aa gayi." else "${call.toolParams["app_name"] ?: "App"} khol diya."
-                    "contact_agent" -> "Call laga rahi hoon."
-                    "play_music" -> {
-                        val actual = successList.firstOrNull { it.first == call }?.second?.message.orEmpty()
-                        val track = Regex("""Now playing local track: (.+?) by (.+?)\.""").find(actual)?.groupValues?.getOrNull(1)
-                        if (track != null) "\"$track\" play kar diya hai." else "Requested gaana play hone ka result verify nahi ho paaya."
-                    }
-                    "set_brightness" -> "Brightness ${call.toolParams["level"] ?: "50"} percent kar di."
-                    "vibrate" -> "Phone vibrate kar diya."
-                    "media_agent" -> when (call.toolParams["action"]?.lowercase(Locale.ROOT)) {
-                        "pause" -> "Music pause kar diya."
-                        "stop" -> "Music rok diya."
-                        "next" -> "Agla local gaana chala diya."
-                        "previous" -> "Pichhla local gaana chala diya."
-                        "play", "resume" -> {
-                            val actual = successList.firstOrNull { it.first == call }?.second?.message.orEmpty()
-                            val track = Regex("""Now playing local track: (.+?)\.""").find(actual)?.groupValues?.getOrNull(1)
-                            if (track != null) "\"$track\" play kar diya hai."
-                            else "Music playback ka result verify nahi ho paaya."
-                        }
-                        else -> "Music playback control complete hua."
-                    }
-                    "reminder_agent" -> "Reminder laga diya."
-                    "web_agent" -> "Web search kar liya."
-                    "toggle_torch" -> {
-                        val isOff = call.toolParams["state"] == "off"
-                        if (isOff) "हाँ, टॉर्च बंद कर दी।" else "हाँ, टॉर्च ऑन कर दी।"
-                    }
-                    "open_app" -> {
-                        val appName = call.toolParams["app_name"] ?: "ऐप"
-                        "$appName खोल रही हूँ।"
-                    }
-                    "set_volume" -> {
-                        val levelInt = call.toolParams["level"]?.toIntOrNull() ?: 50
-                        val hindiNum = HindiSpeechTextPreparer.numberToHindiWords(levelInt)
-                        "वॉल्यूम $hindiNum प्रतिशत कर दिया।"
-                    }
-                    "control_media" -> {
-                        when (call.toolParams["action"]?.lowercase(Locale.ROOT)) {
-                            "pause" -> "म्यूजिक पॉज़ कर दिया।"
-                            "next" -> "अगला गाना चला दिया।"
-                            "previous" -> "पिछला गाना चला दिया।"
-                            else -> "म्यूजिक प्ले कर दिया।"
-                        }
-                    }
-                    "schedule_task" -> "रिमाइंडर सेट कर दिया।"
-                    "web_search" -> "सर्च पूरा कर लिया।"
-                    "export_app_apk" -> "SIA APK एक्सपोर्ट तैयार कर दिया।"
-                    "share_workspace_note" -> "नोट शेयर कर दिया।"
-                    else -> "काम पूरा कर दिया।"
+                    "toggle_torch" -> if (call.toolParams["state"] == "off") "torch band kar di" else "torch on kar di"
+                    "set_brightness" -> "brightness $level percent kar di"
+                    "set_volume" -> "volume $level percent kar diya"
+                    "open_app" -> "$requestedName khol diya"
+                    "close_app" -> "home screen par aa gayi"
+                    "open_camera" -> "camera khol diya"
+                    "vibrate" -> "phone vibrate kar diya"
+                    "call" -> "$calledName ko call laga di"
+                    "play_music" -> actualTrack?.let { "\"$it\" play kar diya" }
+                        ?: "requested gaane ka playback result verify nahi ho paaya"
+                    "play" -> "music playback resume kar diya"
+                    "pause" -> "music pause kar diya"
+                    "stop" -> "music playback rok diya"
+                    "next" -> "agla track chala diya"
+                    "previous" -> "pichhla track chala diya"
+                    "web_search" -> "search results mil gaye"
+                    "list_music" -> "local music ki list mil gayi"
+                    "user_perma_memory" -> if (call.toolParams["action"] == "list") "saved memory details nikaal li" else "memory save kar di"
+                    "schedule_task" -> "reminder schedule kar diya"
+                    "get_task_status" -> "scheduled task ka status check kar liya"
+                    "cancel_scheduled_task" -> "scheduled task cancel kar diya"
+                    "create_workspace_note" -> "note save kar diya"
+                    "export_app_apk" -> "SIA APK export flow khol diya"
+                    "list_all_commands" -> "available commands ki list nikaal di"
+                    else -> "requested action complete kar diya"
+                }
+            } else {
+                when (call.toolName) {
+                    "toggle_torch" -> if (call.toolParams["state"] == "off") "turned off the flashlight" else "turned on the flashlight"
+                    "set_brightness" -> "set brightness to $level percent"
+                    "set_volume" -> "set volume to $level percent"
+                    "open_app" -> "opened $requestedName"
+                    "close_app" -> "returned to the home screen"
+                    "open_camera" -> "opened the camera"
+                    "vibrate" -> "vibrated the phone"
+                    "call" -> "started a call to $calledName"
+                    "play_music" -> actualTrack?.let { "played $it" }
+                        ?: "could not verify the requested track"
+                    "play" -> "resumed media playback"
+                    "pause" -> "paused media playback"
+                    "stop" -> "stopped media playback"
+                    "next" -> "skipped to the next track"
+                    "previous" -> "returned to the previous track"
+                    "web_search" -> "retrieved web search results"
+                    "list_music" -> "retrieved the local music list"
+                    "user_perma_memory" -> if (call.toolParams["action"] == "list") "retrieved saved memories" else "saved a memory"
+                    "schedule_task" -> "scheduled a reminder"
+                    "get_task_status" -> "checked the scheduled task status"
+                    "cancel_scheduled_task" -> "cancelled the scheduled task"
+                    "create_workspace_note" -> "saved a workspace note"
+                    "export_app_apk" -> "opened the SIA APK export flow"
+                    "list_all_commands" -> "retrieved the available command list"
+                    else -> "completed the requested action"
                 }
             }
+        }
 
-            return when (phrases.size) {
-                1 -> phrases[0]
-                2 -> "${phrases[0]} और ${phrases[1]}"
-                else -> "${phrases.dropLast(1).joinToString(", ")}, और ${phrases.last()}"
+        return if (isHindiHinglish) {
+            when (phrases.size) {
+                0 -> "Kaam ka result confirm nahi ho paaya."
+                1 -> "Haan, ${phrases[0]}."
+                2 -> "Haan, ${phrases[0]} aur ${phrases[1]}."
+                else -> "Haan, ${phrases.dropLast(1).joinToString(", ")}, aur ${phrases.last()}."
             }
         } else {
-            val phrases = successList.map { (call, _) ->
-                when (call.toolName) {
-                    "device_agent" -> "completed the device action"
-                    "app_agent" -> if (call.toolParams["action"] == "close") "returned to the home screen" else "opened ${call.toolParams["app_name"] ?: "app"}"
-                    "contact_agent" -> "started the call"
-                    "play_music" -> {
-                        val actual = successList.firstOrNull { it.first == call }?.second?.message.orEmpty()
-                        val track = Regex("""Now playing local track: (.+?) by (.+?)\.""").find(actual)?.groupValues?.getOrNull(1)
-                        if (track != null) "played $track" else "could not verify the requested track"
-                    }
-                    "set_brightness" -> "brightness set to ${call.toolParams["level"] ?: "50"} percent"
-                    "vibrate" -> "vibrated the phone"
-                    "media_agent" -> "handled local or existing media playback"
-                    "reminder_agent" -> "handled the reminder"
-                    "web_agent" -> "searched the web"
-                    "toggle_torch" -> if (call.toolParams["state"] == "off") "turned off the flashlight" else "turned on the flashlight"
-                    "open_app" -> "opened ${call.toolParams["app_name"] ?: "app"}"
-                    "set_volume" -> "volume set to ${call.toolParams["level"] ?: "50"} percent"
-                    "control_media" -> "media command sent"
-                    "schedule_task" -> "reminder scheduled"
-                    "web_search" -> "searched the web"
-                    "export_app_apk" -> "opened SIA APK installation export"
-                    "share_workspace_note" -> "shared workspace note"
-                    else -> "${call.toolName} completed"
-                }
-            }
-
-            return when (phrases.size) {
-                1 -> "Done! ${phrases[0]}."
-                2 -> "Done! ${phrases[0]} and ${phrases[1]}."
-                else -> "Done! ${phrases.dropLast(1).joinToString(", ")}, and ${phrases.last()}."
+            when (phrases.size) {
+                0 -> "I couldn't verify the action result."
+                1 -> "Done — ${phrases[0]}."
+                2 -> "Done — ${phrases[0]} and ${phrases[1]}."
+                else -> "Done — ${phrases.dropLast(1).joinToString(", ")}, and ${phrases.last()}."
             }
         }
     }
