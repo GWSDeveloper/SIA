@@ -18,8 +18,16 @@ object ToolCallParser {
         for (match in fenced.findAll(rawText)) {
             val body = match.groupValues[1].trim()
             val parsed = parseJsonPayload(body)
-            if (parsed.isNotEmpty()) {
-                calls.addAll(parsed)
+            val isToolProtocolBlock = match.value.startsWith("```tool_calls") ||
+                match.value.startsWith("```tool_call") ||
+                match.value.startsWith("```tools") ||
+                match.value.startsWith("```tool")
+
+            if (parsed.isNotEmpty()) calls.addAll(parsed)
+
+            // Never expose malformed or empty tool protocol to the chat UI.
+            // A model can emit an incomplete block such as ```tool_calls [ ```.
+            if (parsed.isNotEmpty() || isToolProtocolBlock) {
                 removedRanges.add(match.range)
             }
         }
@@ -60,8 +68,18 @@ object ToolCallParser {
             if (cursor < rawText.length) append(rawText.substring(cursor))
         }.trim()
 
+        val cleanReply = cleaned.replace(Regex("\\n{3,}"), "\n\n").trim()
+        val containedToolProtocol = rawText.contains("```tool_calls") ||
+            rawText.contains("```tool_call") ||
+            rawText.contains("```tools") ||
+            rawText.contains("```tool")
+
         return LlmCallResult(
-            textReply = cleaned.replace(Regex("\\n{3,}"), "\n\n").trim(),
+            textReply = if (deduped.isEmpty() && cleanReply.isBlank() && containedToolProtocol) {
+                "I couldn't form a valid action request. Please try again."
+            } else {
+                cleanReply
+            },
             toolCalls = deduped
         )
     }
