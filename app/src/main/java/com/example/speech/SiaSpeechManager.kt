@@ -196,7 +196,8 @@ class SiaSpeechManager(
                 }
             }
 
-            override fun onRmsChanged(rmsdB: Float) {                if (_visualState.value != AssistantVisualState.PAUSED) {
+            override fun onRmsChanged(rmsdB: Float) {
+                if (_visualState.value != AssistantVisualState.PAUSED) {
                     val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
                     _rmsAudioLevel.value = normalized
                 }
@@ -395,7 +396,8 @@ class SiaSpeechManager(
             if (!isSessionActive) {
                 _visualState.value = AssistantVisualState.IDLE
             }
-            onRecognitionError("Voice recognition engine not found on this device. Please use keyboard chat.")            return
+            onRecognitionError("Voice recognition engine not found on this device. Please use keyboard chat.")
+            return
         }
 
         if (isCurrentlyListening) {
@@ -594,7 +596,8 @@ class SiaSpeechManager(
             }
             override fun onDone(utteranceId: String?) {
                 val utteranceSessionId = utteranceId?.substringAfter("sia_utterance_")?.substringBefore("_")?.toLongOrNull() ?: activeSpeechSessionId
-                mainHandler.post {                    onSpeechPlaybackCompleted(utteranceSessionId)
+                mainHandler.post {
+                    onSpeechPlaybackCompleted(utteranceSessionId)
                 }
             }
             @Deprecated("Deprecated in Java")
@@ -793,6 +796,7 @@ class SiaSpeechManager(
                 }
 
                 if (!isActive || currentSessionId != activeSpeechSessionId) return@launch
+
                 if (failedChunkIndex != null) {
                     // Fallback policy: only speak the remaining unplayed chunks with Android TTS
                     val remainingText = chunks.subList(failedChunkIndex, chunks.size).joinToString(" ")
@@ -992,3 +996,111 @@ class SiaSpeechManager(
 
             // 1. Remove markdown code blocks first (e.g. ```json ... ```)
             val withoutCodeBlocks = text.replace(Regex("""```(?:[a-zA-Z0-9_-]+)?[\s\S]*?```"""), "")
+
+            // 2. Strip JSON tool calls (including nested braces and brackets)
+            val sb = StringBuilder()
+            var i = 0
+            val n = withoutCodeBlocks.length
+            while (i < n) {
+                if (withoutCodeBlocks[i] == '{' || withoutCodeBlocks[i] == '[') {
+                    val openChar = withoutCodeBlocks[i]
+                    val closeChar = if (openChar == '{') '}' else ']'
+                    var depth = 1
+                    var j = i + 1
+                    var inString = false
+                    var escape = false
+                    while (j < n && depth > 0) {
+                        val c = withoutCodeBlocks[j]
+                        if (escape) {
+                            escape = false
+                        } else if (c == '\\') {
+                            escape = true
+                        } else if (c == '"') {
+                            inString = !inString
+                        } else if (!inString) {
+                            if (c == openChar) depth++
+                            else if (c == closeChar) depth--
+                        }
+                        j++
+                    }
+                    if (depth == 0) {
+                        val candidate = withoutCodeBlocks.substring(i, j)
+                        if (candidate.contains("\"tool\"") || candidate.contains("'tool'") || candidate.contains("\"action\"")) {
+                            i = j
+                            continue
+                        }
+                    }
+                }
+                sb.append(withoutCodeBlocks[i])
+                i++
+            }
+
+            // 3. Remove markdown symbols and trim
+            return sb.toString()
+                .replace(Regex("""[*#_`~]"""), "")
+                .trim()
+        }
+
+        /**
+         * Splits text into coherent sentences/clauses for sequential TTS playback.
+         * Respects punctuation (period, exclamation, question mark, Hindi purna viram, newline),
+         * ensuring no chunk exceeds maxChunkSize and original sentence order is strictly preserved.
+         */
+        fun splitIntoSpeechChunks(text: String, maxChunkSize: Int = 750): List<String> {
+            val trimmed = text.trim()
+            if (trimmed.isEmpty()) return emptyList()
+            if (trimmed.length <= maxChunkSize) return listOf(trimmed)
+
+            // Split on sentence-ending boundaries: period, question mark, exclamation, Hindi danda/purna viram (।), newline
+            val sentenceRegex = Regex("""(?<=[.!?।\n])\s+""")
+            val rawSentences = trimmed.split(sentenceRegex).map { it.trim() }.filter { it.isNotEmpty() }
+
+            val chunks = mutableListOf<String>()
+            val currentChunk = StringBuilder()
+
+            for (sentence in rawSentences) {
+                if (sentence.length > maxChunkSize) {
+                    if (currentChunk.isNotEmpty()) {
+                        chunks.add(currentChunk.toString().trim())
+                        currentChunk.clear()
+                    }
+                    val subParts = splitLongSentence(sentence, maxChunkSize)
+                    chunks.addAll(subParts)
+                } else {
+                    if (currentChunk.isNotEmpty() && currentChunk.length + sentence.length + 1 > maxChunkSize) {
+                        chunks.add(currentChunk.toString().trim())
+                        currentChunk.clear()
+                    }
+                    if (currentChunk.isNotEmpty()) {
+                        currentChunk.append(" ")
+                    }
+                    currentChunk.append(sentence)
+                }
+            }
+
+            if (currentChunk.isNotEmpty()) {
+                chunks.add(currentChunk.toString().trim())
+            }
+
+            return chunks.filter { it.isNotBlank() }
+        }
+
+        private fun splitLongSentence(sentence: String, maxChunkSize: Int): List<String> {
+            val result = mutableListOf<String>()
+            val words = sentence.split(" ")
+            val sb = StringBuilder()
+            for (w in words) {
+                if (sb.isNotEmpty() && sb.length + w.length + 1 > maxChunkSize) {
+                    result.add(sb.toString().trim())
+                    sb.clear()
+                }
+                if (sb.isNotEmpty()) sb.append(" ")
+                sb.append(w)
+            }
+            if (sb.isNotEmpty()) {
+                result.add(sb.toString().trim())
+            }
+            return result
+        }
+    }
+}
