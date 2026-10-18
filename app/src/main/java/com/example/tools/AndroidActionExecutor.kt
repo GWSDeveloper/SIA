@@ -14,6 +14,7 @@ import android.os.Build
 import android.provider.Settings
 import android.view.KeyEvent
 import com.example.data.ScheduledTaskEntity
+import com.example.memory.MemoryManager
 import com.example.data.SiaDatabase
 import com.example.permissions.SiaPermissionManager
 import com.example.scheduler.ScheduledTaskReceiver
@@ -29,6 +30,7 @@ import java.util.UUID
 class AndroidActionExecutor(private val context: Context) {
 
     private val db = SiaDatabase.getDatabase(context)
+    private val memoryManager = MemoryManager(context)
     private var isTorchOn = false
     private val webSearchAgent = WebSearchAgent(context)
     private val contactAgent = ContactAgent(context)
@@ -47,6 +49,10 @@ class AndroidActionExecutor(private val context: Context) {
                 "toggle_mobile_data" -> handleDeviceAgent(mapOf("action" to "mobile_data_${params["state"]?.lowercase(Locale.ROOT) ?: "on"}"))
                 "open_app" -> handleOpenApp(params["app_name"] ?: "")
                 "close_app" -> handleAppAgent(mapOf("action" to "close"))
+                "open_camera" -> handleOpenApp("Camera")
+                "vibrate" -> handleVibrate(params["duration_ms"]?.toLongOrNull() ?: 250L)
+                "send_sms" -> handleSendSms(params["number"] ?: "", params["message"] ?: "")
+                "user_perma_memory" -> handlePermanentMemory(params)
                 "call" -> {
                     val target = params["name"]?.trim().orEmpty()
                     if (target.any(Char::isLetter)) contactAgent.callContact(target)
@@ -77,6 +83,67 @@ class AndroidActionExecutor(private val context: Context) {
                     message = "Command '$name' is not recognized or supported by SIA on this device."
                 )
             }
+        }
+    }
+
+    private fun handleVibrate(durationMs: Long): ToolExecutionResult {
+        val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            ?: return ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Vibration hardware is unavailable.")
+        val duration = durationMs.coerceIn(1L, 5000L)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createOneShot(duration, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(duration)
+            }
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Phone vibrated for $duration ms.")
+        } catch (e: Exception) {
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not vibrate the phone: ${e.message ?: "unknown error"}")
+        }
+    }
+
+    private fun handleSendSms(number: String, message: String): ToolExecutionResult {
+        val recipient = number.trim()
+        val body = message.trim()
+        if (recipient.isBlank() || body.isBlank()) {
+            return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Both recipient number and SMS message are required.")
+        }
+        return try {
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(recipient)}")).apply {
+                putExtra("sms_body", body)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            ToolExecutionResult(
+                ToolResultStatus.USER_CONFIRMATION_REQUIRED,
+                "SMS composer opened for $recipient. The message has NOT been sent; the user must review it and tap Send."
+            )
+        } catch (e: Exception) {
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not open the SMS composer: ${e.message ?: "unknown error"}")
+        }
+    }
+
+    private suspend fun handlePermanentMemory(params: Map<String, String>): ToolExecutionResult {
+        return when (params["action"]?.lowercase(Locale.ROOT)) {
+            "save" -> {
+                val key = params["key"]?.trim().orEmpty()
+                val value = params["value"]?.trim().orEmpty()
+                if (key.isBlank() || value.isBlank()) {
+                    ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Saving a memory requires both key and value.")
+                } else {
+                    memoryManager.addPermanentMemory(key, value)
+                    ToolExecutionResult(ToolResultStatus.SUCCESS, "Saved permanent memory for '$key'.")
+                }
+            }
+            "list" -> {
+                val memories = memoryManager.getPermanentMemoryText()
+                ToolExecutionResult(
+                    ToolResultStatus.SUCCESS,
+                    if (memories.isBlank()) "No permanent memories are saved." else memories
+                )
+            }
+            else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Use user_perma_memory with action save or list.")
         }
     }
 
