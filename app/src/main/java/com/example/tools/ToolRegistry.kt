@@ -4,10 +4,6 @@ package com.example.tools
 object ToolRegistry {
 
     /**
-     * Compact agent-facing API. The orchestrator exposes these stable function names;
-     * each agent owns its operation-specific validation and implementation.
-     */
-    /**
      * Simple individual functions exposed directly to the LLM.
      * Only tools backed by an executor implementation are listed.
      */
