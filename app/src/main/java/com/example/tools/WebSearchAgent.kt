@@ -21,7 +21,7 @@ class WebSearchAgent(context: Context) {
         val apiKey = preferences.getTavilyApiKey()
         if (apiKey.isBlank()) return ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "TAVILY_KEY_MISSING: Add a Tavily API key in SIA Settings to enable web search.")
         return try {
-            val payload = JSONObject().put("api_key", apiKey).put("query", cleanQuery).put("search_depth", "basic").put("max_results", 5).put("include_answer", true).put("include_raw_content", false)
+            val payload = JSONObject().put("api_key", apiKey).put("query", cleanQuery).put("search_depth", "advanced").put("max_results", 5).put("include_answer", true).put("include_raw_content", false)
             val request = Request.Builder().url("https://api.tavily.com/search").post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
             client.newCall(request).execute().use { response ->
                 val bodyText = response.body?.string().orEmpty()
