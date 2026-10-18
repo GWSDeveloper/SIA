@@ -28,6 +28,9 @@ import com.example.R
 import com.example.permissions.SiaPermissionManager
 import com.example.preferences.SiaPreferences
 import com.example.provider.PromptContext
+import com.example.provider.PromptMessage
+import com.example.data.SiaDatabase
+import com.example.memory.MemoryManager
 import com.example.provider.ProviderFactory
 import com.example.speech.AssistantVisualState
 import com.example.speech.SiaSpeechManager
@@ -325,54 +328,97 @@ class SiaFloatingService : Service() {
 
     private fun handleFloatingCommand(command: String) {
         statusTextView?.text = "Command: $command"
-        updateOrbVisualState(AssistantVisualState.EXECUTING)
+        updateOrbVisualState(AssistantVisualState.THINKING)
 
         serviceScope.launch(Dispatchers.IO) {
             val executor = AndroidActionExecutor(this@SiaFloatingService)
-            val resolution = ToolRegistry.resolveCommand(command)
-
-            if (resolution is ToolRegistry.CommandResolution.LocalActions) {
-                val executionResults = mutableListOf<Pair<com.example.provider.SingleToolCall, com.example.tools.ToolExecutionResult>>()
-                for (call in resolution.actions) {
-                    val res = executor.executeTool(call.toolName, call.toolParams)
-                    executionResults.add(call to res)
-                }
-
-                val failed = executionResults.filter { it.second.status != ToolResultStatus.SUCCESS }
-                if (failed.isEmpty()) {
-                    val confirmations = executionResults.map { it.second.message }
-                    val spoken = confirmations.joinToString(". ")
-                    launch(Dispatchers.Main) {
-                        statusTextView?.text = spoken
-                        speechManager?.speak(spoken)
-                        updateOrbVisualState(AssistantVisualState.SPEAKING)
-                    }
-                    return@launch
-                }
+            val preferences = SiaPreferences.getInstance(this@SiaFloatingService)
+            val memory = MemoryManager(this@SiaFloatingService)
+            val dao = SiaDatabase.getDatabase(this@SiaFloatingService).siaDao()
+            val recentHistory = dao.getRecentMessages(10).reversed().map {
+                PromptMessage(
+                    role = if (it.sender == "user") "user" else "assistant",
+                    content = it.text
+                )
             }
-
-            // Fallback to AI provider for complex tasks, conversation, or when local actions failed
-            val provider = ProviderFactory.createProvider(this@SiaFloatingService)
-            val promptContext = PromptContext(
-                systemPrompt = "You are SIA by FAST. Keep your response spoken, natural, concise (1-2 sentences), and friendly in Hindi/Hinglish or English based on user query.",
-                permanentMemory = "",
-                rollingSummary = "",
-                recentMessages = emptyList(),
+            val systemPrompt = buildString {
+                append("You are ${preferences.getAssistantName()}, a personal Android assistant by FAST. You are a woman and speak naturally, warmly and concisely.\n")
+                append("Use Roman-script Hinglish when the user speaks Hinglish and English when they speak English.\n")
+                append("Use only the individual tools in the supplied catalogue. For compound requests, emit every independent required tool call in one tool_calls JSON array. Do not claim success before tool results.\n")
+                append("Never repeat completed side effects. Retry only RETRYABLE_ERROR operations, with a maximum of 3 attempts for an exact call. Respect permissions and Android platform limits.\n")
+            }
+            val initialContext = PromptContext(
+                systemPrompt = systemPrompt,
+                permanentMemory = memory.getPermanentMemoryText(),
+                rollingSummary = memory.getRollingSummaryText(),
+                recentMessages = recentHistory,
                 currentUserMessage = command,
-                availableTools = ToolRegistry.getAllTools()
+                availableTools = ToolRegistry.getAgentTools()
             )
-            val res = provider.generateResponse(promptContext)
-            val spoken = if (res.isSuccess) {
-                val llmOutput = res.getOrThrow()
-                if (llmOutput.toolCalls.isNotEmpty()) {
-                    for (call in llmOutput.toolCalls) {
-                        executor.executeTool(call.toolName, call.toolParams)
-                    }
+
+            val first = ProviderFactory.createProvider(this@SiaFloatingService).generateResponse(initialContext)
+            if (first.isFailure) {
+                val error = "AI request failed: ${first.exceptionOrNull()?.message ?: "provider unavailable"}"
+                launch(Dispatchers.Main) {
+                    statusTextView?.text = error
+                    speechManager?.speak(error)
+                    updateOrbVisualState(AssistantVisualState.ERROR)
                 }
-                llmOutput.textReply.ifEmpty { "Ho gaya." }
-            } else {
-                "Main yeh request process nahi kar paayi: ${res.exceptionOrNull()?.message}"
+                return@launch
             }
+
+            val executionResults = mutableListOf<Pair<com.example.provider.SingleToolCall, com.example.tools.ToolExecutionResult>>()
+            val attempts = mutableMapOf<String, Int>()
+            var pendingCalls = first.getOrThrow().toolCalls
+            var finalText = first.getOrThrow().textReply
+            var rounds = 0
+
+            fun signature(call: com.example.provider.SingleToolCall): String =
+                call.toolName + "|" + call.toolParams.toSortedMap().toString()
+
+            while (pendingCalls.isNotEmpty() && rounds < 3) {
+                rounds++
+                val callsToRun = pendingCalls.filter { call ->
+                    val key = signature(call)
+                    val previous = executionResults.lastOrNull { signature(it.first) == key }?.second
+                    previous == null || (previous.status == ToolResultStatus.RETRYABLE_ERROR && (attempts[key] ?: 1) < 3)
+                }
+                if (callsToRun.isEmpty()) break
+
+                for (call in callsToRun) {
+                    val key = signature(call)
+                    attempts[key] = (attempts[key] ?: 0) + 1
+                    executionResults.add(call to executor.executeTool(call.toolName, call.toolParams))
+                }
+
+                val outcomes = executionResults.joinToString("\n") { (call, result) ->
+                    "Tool ${call.toolName} ${call.toolParams}: ${result.status} — ${result.message}"
+                }
+                val followUpContext = PromptContext(
+                    systemPrompt = systemPrompt + "\nContinue the original task using actual tool results. Do not repeat successful or terminal calls. Retry RETRYABLE_ERROR only, at most 3 attempts total for the exact call. If no work remains, answer the user.",
+                    permanentMemory = initialContext.permanentMemory,
+                    rollingSummary = initialContext.rollingSummary,
+                    recentMessages = recentHistory,
+                    currentUserMessage = "Original request: $command\n\nTool results:\n$outcomes\n\nContinue the task or give the final answer.",
+                    availableTools = ToolRegistry.getAgentTools()
+                )
+                val followUp = ProviderFactory.createProvider(this@SiaFloatingService).generateResponse(followUpContext)
+                if (followUp.isFailure) {
+                    finalText = ""
+                    break
+                }
+                finalText = followUp.getOrThrow().textReply
+                pendingCalls = followUp.getOrThrow().toolCalls
+            }
+
+            if (pendingCalls.isNotEmpty() && rounds >= 3) {
+                finalText = "I reached the safe action limit before I could verify the entire request."
+            }
+            val spoken = finalText.trim().takeIf { it.isNotBlank() && !it.contains("tool_calls") }
+                ?: executionResults.joinToString(". ") { it.second.message }.ifBlank {
+                    "I couldn't get a usable response. Please try again."
+                }
+
             launch(Dispatchers.Main) {
                 statusTextView?.text = spoken
                 speechManager?.speak(spoken)
