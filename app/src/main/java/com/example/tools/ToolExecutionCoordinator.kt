@@ -59,13 +59,18 @@ class ToolExecutionCoordinator(
             for (call in callsToRun) {
                 val key = signature(call)
                 attemptsBySignature[key] = (attemptsBySignature[key] ?: 0) + 1
-                val result = if (call.toolName !in allowedTools) {
-                    ToolExecutionResult(
+                val definition = planningContext.availableTools.firstOrNull { it.name == call.toolName }
+                val validationError = definition?.let { validateParameters(call, it) }
+                val result = when {
+                    definition == null || call.toolName !in allowedTools -> ToolExecutionResult(
                         status = ToolResultStatus.UNSUPPORTED,
                         message = "Tool '${call.toolName}' is not registered for this request."
                     )
-                } else {
-                    executor.executeTool(call.toolName, call.toolParams)
+                    validationError != null -> ToolExecutionResult(
+                        status = ToolResultStatus.PERMANENT_ERROR,
+                        message = validationError
+                    )
+                    else -> executor.executeTool(call.toolName, call.toolParams)
                 }
                 executionResults.add(call to result)
             }
@@ -112,4 +117,33 @@ class ToolExecutionCoordinator(
             followUpFailed = followUpFailed
         )
     }
+    private fun validateParameters(call: SingleToolCall, definition: ToolDefinition): String? {
+        val parameters = definition.parameters.associateBy { it.name }
+        val unknown = call.toolParams.keys.filter { it !in parameters }
+        if (unknown.isNotEmpty()) {
+            return "Unknown parameter(s) for ${call.toolName}: ${unknown.joinToString(", ")}. " +
+                "Allowed parameters: ${parameters.keys.joinToString(", ").ifBlank { "none" }}."
+        }
+
+        val missing = definition.parameters.filter { parameter ->
+            parameter.required && call.toolParams[parameter.name].isNullOrBlank()
+        }.map { it.name }
+        if (missing.isNotEmpty()) {
+            return "Missing required parameter(s) for ${call.toolName}: ${missing.joinToString(", ")}."
+        }
+
+        for ((name, value) in call.toolParams) {
+            val parameter = parameters[name] ?: continue
+            when (parameter.type.lowercase()) {
+                "number" -> if (value.toDoubleOrNull() == null) {
+                    return "Parameter '$name' for ${call.toolName} must be a number."
+                }
+                "boolean" -> if (!value.equals("true", true) && !value.equals("false", true)) {
+                    return "Parameter '$name' for ${call.toolName} must be true or false."
+                }
+            }
+        }
+        return null
+    }
+
 }
