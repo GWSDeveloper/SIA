@@ -61,6 +61,17 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `shared prompt refers only to registered tool names`() {
+        val prompt = com.example.provider.SiaSystemPrompt.build("SIA")
+        assertTrue(prompt.contains("web_search"))
+        assertTrue(prompt.contains("play_music"))
+        assertTrue(prompt.contains("call with the saved contact name"))
+        assertFalse(prompt.contains("web_agent"))
+        assertFalse(prompt.contains("media_agent"))
+        assertFalse(prompt.contains("contact_agent"))
+    }
+
+    @Test
     fun `compound tool protocol preserves nested parameter text and every action`() {
         val raw = """Preparing the requested actions.
 ```tool_calls
