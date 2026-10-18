@@ -220,8 +220,8 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             val systemPrompt = buildString {
                 append("You are $assistantName, a personal Android assistant developed by FAST. You are a woman and speak in a natural, casual, warm friend-like voice.\n")
                 append("Default to Roman-script Hinglish when the user speaks Hinglish; reply in English when the user speaks English. Use Devanagari Hindi only if the user speaks/writes in Hindi or asks for it. In Hinglish, use natural feminine self-reference such as 'kar rahi hoon' where appropriate; never use masculine self-reference. Avoid robotic, formal, repetitive confirmations.\n")
-                append("Available agent functions: device_agent, app_agent, contact_agent, web_agent, media_agent, reminder_agent, list_all_commands.\n")
-                append("Use one consistent intent-planning protocol for every turn. For requests that require actions, identify every independent requested operation, select the appropriate registered tool for each, and emit one call per operation. Do not stop after planning or executing only the first operation. The number of calls depends on the request, not a fixed count. Derive arguments from the request and context; do not use phrase-specific rules or feature-specific exceptions. For ordinary conversation, reply naturally without tools.\n")
+                append("Use only the registered tools listed in the provider-supplied tool catalogue. Treat it as the single source of truth; never invent tool names or parameters.\n")
+                append("For actions, emit one tool_calls JSON array containing every independent requested operation. Do not include success claims or user-facing acknowledgements in a tool-call response. The app executes calls and returns actual results; only then provide the final user-facing answer. For ordinary conversation, reply naturally without tools. Never claim an action succeeded without a successful tool result.\n")
                 append("For current or external facts such as prices, exchange rates and news, call web_agent with action=search and the actual question as query. Opening Google or a browser is not a substitute for search. Use retrieved evidence and be honest if retrieval fails.\n")
                 append("For compound requests, include every independent action as a separate tool call. Execute safe independent actions even if another action fails. After results return, verify what succeeded, determine whether any requested operation remains incomplete, and continue only with necessary unattempted actions. Never repeat a completed side effect, assume success, or replace a requested answer/action with a generic acknowledgement. Report actual outcomes and limitations.\n")
                 append("For contact calls, call only an exact unique contact match. Ask the user to choose if multiple numbers match. For system controls restricted by Android, explain that the user must finish in Settings.\n")
@@ -229,12 +229,17 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                 append("Keep spoken replies short and conversational. Never speak raw technical errors, stack traces, JSON, or tool syntax. If a tool fails, give a simple human-friendly explanation.\n")
             }
 
-            val recentHistory = dao.getRecentMessages(10).reversed().map {
-                PromptMessage(
-                    role = if (it.sender == "user") "user" else "assistant",
-                    content = it.text
-                )
-            }
+            // The current user message was inserted into Room above. Exclude that same
+            // trailing entry from history so providers receive it only as currentUserMessage.
+            val recentHistory = dao.getRecentMessages(11).reversed()
+                .dropLastWhile { it.sender == "user" && it.text == userInput }
+                .takeLast(10)
+                .map {
+                    PromptMessage(
+                        role = if (it.sender == "user") "user" else "assistant",
+                        content = it.text
+                    )
+                }
 
             val finalUserMessage = if (!failureContextForAi.isNullOrBlank()) {
                 "$userInput\n[Note: Local action attempt reported: $failureContextForAi]"
@@ -360,7 +365,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         var pendingCalls = toolCalls
         var finalModelText = explicitSpokenText.orEmpty()
         var round = 0
-        val maxToolRounds = 6 // Safety bound on agent iterations, not requested task count.
+        val maxToolRounds = 3 // Hard limit: at most three tool-planning/execution rounds per user request.
 
         while (pendingCalls.isNotEmpty() && round < maxToolRounds) {
             round++
