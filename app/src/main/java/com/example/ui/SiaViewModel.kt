@@ -636,6 +636,13 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     "device_agent" -> "Haan, device setting handle kar di."
                     "app_agent" -> if (call.toolParams["action"] == "close") "Chalo, home screen par aa gayi." else "${call.toolParams["app_name"] ?: "App"} khol diya."
                     "contact_agent" -> "Call laga rahi hoon."
+                    "play_music" -> {
+                        val actual = successList.firstOrNull { it.first == call }?.second?.message.orEmpty()
+                        val track = Regex("""Now playing local track: (.+?) by (.+?)\.""").find(actual)?.groupValues?.getOrNull(1)
+                        if (track != null) "\"$track\" play kar diya hai." else "Requested gaana play hone ka result verify nahi ho paaya."
+                    }
+                    "set_brightness" -> "Brightness ${call.toolParams["level"] ?: "50"} percent kar di."
+                    "vibrate" -> "Phone vibrate kar diya."
                     "media_agent" -> when (call.toolParams["action"]?.lowercase(Locale.ROOT)) {
                         "pause" -> "Music pause kar diya."
                         "stop" -> "Music rok diya."
@@ -691,6 +698,13 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     "device_agent" -> "completed the device action"
                     "app_agent" -> if (call.toolParams["action"] == "close") "returned to the home screen" else "opened ${call.toolParams["app_name"] ?: "app"}"
                     "contact_agent" -> "started the call"
+                    "play_music" -> {
+                        val actual = successList.firstOrNull { it.first == call }?.second?.message.orEmpty()
+                        val track = Regex("""Now playing local track: (.+?) by (.+?)\.""").find(actual)?.groupValues?.getOrNull(1)
+                        if (track != null) "played $track" else "could not verify the requested track"
+                    }
+                    "set_brightness" -> "brightness set to ${call.toolParams["level"] ?: "50"} percent"
+                    "vibrate" -> "vibrated the phone"
                     "media_agent" -> "handled local or existing media playback"
                     "reminder_agent" -> "handled the reminder"
                     "web_agent" -> "searched the web"
