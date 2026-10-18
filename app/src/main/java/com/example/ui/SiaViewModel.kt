@@ -17,6 +17,7 @@ import com.example.speech.HindiSpeechTextPreparer
 import com.example.speech.SiaSpeechManager
 import com.example.tools.AndroidActionExecutor
 import com.example.tools.ToolExecutionResult
+import com.example.tools.ToolExecutionCoordinator
 import com.example.tools.ToolRegistry
 import com.example.tools.ToolResultStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -210,7 +211,6 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
             // Use the unified LLM planner for every turn; local phrase parsing must not
             // consume a compound request or bypass web research and conversational intent.
-            val failureContextForAi: String? = null
             // 3. Construct AI prompt context for selected LLM provider
             val assistantName = preferences.getAssistantName()
             val permanentMemory = memoryManager.getPermanentMemoryText()
@@ -230,18 +230,14 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-            val finalUserMessage = if (!failureContextForAi.isNullOrBlank()) {
-                "$userInput\n[Note: Local action attempt reported: $failureContextForAi]"
-            } else {
-                userInput
-            }
+
 
             val promptContext = PromptContext(
                 systemPrompt = systemPrompt,
                 permanentMemory = permanentMemory,
                 rollingSummary = rollingSummary,
                 recentMessages = recentHistory,
-                currentUserMessage = finalUserMessage,
+                currentUserMessage = userInput,
                 availableTools = ToolRegistry.getAgentTools()
             )
 
@@ -279,65 +275,6 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private data class LocalExecutionOutcome(
-        val allSucceeded: Boolean,
-        val failureSummary: String
-    )
-
-    private suspend fun executeLocalActionsWithVerification(
-        actions: List<SingleToolCall>,
-        isFromVoice: Boolean,
-        originalUserText: String
-    ): LocalExecutionOutcome {
-        _visualState.value = AssistantVisualState.EXECUTING
-        _statusText.value = "Executing ${actions.size} action(s)..."
-
-        val executionResults = mutableListOf<Pair<SingleToolCall, ToolExecutionResult>>()
-        for (action in actions) {
-            val result = actionExecutor.executeTool(action.toolName, action.toolParams)
-            executionResults.add(action to result)
-        }
-
-        val failed = executionResults.filter { it.second.status != ToolResultStatus.SUCCESS }
-        if (failed.isEmpty()) {
-            val isHindiHinglish = isHindiOrHinglish(originalUserText) ||
-                    preferences.getLanguagePreference().contains("Hindi") ||
-                    preferences.getLanguagePreference().contains("Hinglish")
-            val spoken = synthesizeSuccessConfirmation(executionResults, isHindiHinglish)
-            val badgesSummary = executionResults.joinToString(" • ") { (call, res) ->
-                formatHumanReadableActionBadge(call, res)
-            }
-
-            _lastAssistantReply.value = spoken
-            _statusText.value = spoken
-            _visualState.value = AssistantVisualState.IDLE
-
-            dao.insertMessage(
-                ConversationEntity(
-                    sender = "assistant",
-                    text = spoken,
-                    timestamp = System.currentTimeMillis(),
-                    toolName = actions.joinToString(", ") { it.toolName },
-                    toolInput = actions.joinToString("; ") { "${it.toolName}:${it.toolParams}" },
-                    toolStatus = "SUCCESS",
-                    toolResult = badgesSummary,
-                    isSpoken = isFromVoice
-                )
-            )
-
-            if (preferences.isAutoSpeakEnabled()) {
-                speechManager.speak(spoken)
-            }
-
-            return LocalExecutionOutcome(allSucceeded = true, failureSummary = "")
-        } else {
-            val failureSummary = executionResults.joinToString("; ") { (call, res) ->
-                "${call.toolName}: ${res.status.name}"
-            }
-            return LocalExecutionOutcome(allSucceeded = false, failureSummary = failureSummary)
-        }
-    }
-
     /**
      * Executes multiple actions sequentially, validates results, and generates a natural spoken confirmation.
      */
@@ -354,7 +291,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             textReply = explicitSpokenText.orEmpty(),
             toolCalls = toolCalls
         )
-        val outcome = com.example.tools.ToolExecutionCoordinator(
+        val outcome = ToolExecutionCoordinator(
             getApplication(),
             actionExecutor
         ).execute(
