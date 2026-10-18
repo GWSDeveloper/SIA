@@ -490,7 +490,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                 !call.toolParams["query"].isNullOrBlank()
         }
         val hasWebSearch = executionResults.any { it.first.toolName in setOf("web_agent", "web_search") }
-        val genericWebAcknowledgement = finalModelText.contains("web search kar liya", ignoreCase = true) ||
+        val genericWebAcknowledgement = finalModelText.isBlank() || finalModelText.contains("web search kar liya", ignoreCase = true) ||
             finalModelText.contains("search complete", ignoreCase = true) ||
             finalModelText.contains("search kar li", ignoreCase = true)
         val spokenConfirmation: String = if (failedResults.isEmpty() && hasNamedMusicPlay) {
@@ -550,7 +550,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun handleConversationalReply(cleanReply: String, isFromVoice: Boolean) {
-        val reply = cleanReply.ifEmpty { "Main sun rahi hoon." }
+        val reply = cleanReply.ifBlank { "Mujhe is baar usable response nahi mila. Ek baar dobara try karte hain." }
         _visualState.value = AssistantVisualState.IDLE
         _statusText.value = "Ready"
         _lastAssistantReply.value = reply
