@@ -58,6 +58,7 @@ class AndroidActionExecutor(private val context: Context) {
                     if (target.any(Char::isLetter)) contactAgent.callContact(target)
                     else contactAgent.callSpecificNumber(target)
                 }
+                "list_music" -> localMusicPlayer.listTracks(params["query"] ?: "")
                 "play_music" -> handleMediaAgent(mapOf("action" to "play", "query" to (params["query"] ?: "")))
                 "play", "pause", "stop", "next", "previous" -> handleControlMedia(name)
                 "device_agent" -> handleDeviceAgent(params)
