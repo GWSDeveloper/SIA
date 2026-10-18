@@ -39,6 +39,7 @@ class OpenAiCompatibleProvider(
                         val paramList = tool.parameters.joinToString(", ") { "${it.name} (${it.type}): ${it.description}" }
                         append("- ${tool.name}($paramList): ${tool.description}\n")
                     }
+                    append("\nWhen actions are required, output only one tool_calls fenced JSON array containing every independent required operation. Do not append success claims to tool-call responses; execute calls and use actual results before answering.")
                     append("\n```tool_calls\n[{\"tool\": \"tool_name\", \"params\": {\"param_name\": \"value\"}}]\n```")
                     append("\nWhen no tool is required, answer directly and naturally in the user’s language. Never claim an action succeeded before its execution result confirms it.")
                 }
