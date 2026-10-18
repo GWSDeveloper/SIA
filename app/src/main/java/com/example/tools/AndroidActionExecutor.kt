@@ -188,3 +188,5 @@ class AndroidActionExecutor(private val context: Context) {
                 ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not return to the home screen.")
             }
             else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Use app_agent with action open or close.")
+
+
