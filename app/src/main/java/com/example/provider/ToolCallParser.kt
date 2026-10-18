@@ -61,7 +61,7 @@ object ToolCallParser {
         }.trim()
 
         return LlmCallResult(
-            textReply = cleaned.replace(Regex("\\n{3,}"), "\\n\\n").trim(),
+            textReply = cleaned.replace(Regex("\\n{3,}"), "\n\n").trim(),
             toolCalls = deduped
         )
     }
