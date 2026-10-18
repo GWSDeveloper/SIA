@@ -71,6 +71,49 @@ class LocalMusicPlayer(private val context: Context) {
         }
     }
 
+    @Synchronized
+    fun listTracks(query: String = ""): ToolExecutionResult {
+        if (!hasAudioPermission()) {
+            return ToolExecutionResult(
+                ToolResultStatus.PERMISSION_REQUIRED,
+                "MUSIC_PERMISSION_REQUIRED: Allow audio/music access to list local tracks."
+            )
+        }
+        val originalQueue = queue
+        val originalIndex = currentIndex
+        return try {
+            loadQueue(query)
+            val matches = queue.toList()
+            queue = originalQueue
+            currentIndex = originalIndex
+            if (matches.isEmpty()) {
+                ToolExecutionResult(
+                    ToolResultStatus.SUCCESS,
+                    if (query.isBlank()) "No local music files were found." else "No local tracks matched '$query'.",
+                    data = mapOf("count" to "0")
+                )
+            } else {
+                val listed = matches.take(25).joinToString("; ") { track ->
+                    if (track.artist.isBlank() || track.artist.equals("<unknown>", true)) track.title
+                    else "${track.title} by ${track.artist}"
+                }
+                ToolExecutionResult(
+                    ToolResultStatus.SUCCESS,
+                    "Found ${matches.size} local track(s). Showing up to 25: $listed",
+                    data = mapOf("count" to matches.size.toString())
+                )
+            }
+        } catch (_: SecurityException) {
+            queue = originalQueue
+            currentIndex = originalIndex
+            ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "MUSIC_PERMISSION_REQUIRED: Allow audio/music access to list local tracks.")
+        } catch (_: Exception) {
+            queue = originalQueue
+            currentIndex = originalIndex
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not list local music files.")
+        }
+    }
+
     private fun hasAudioPermission(): Boolean {
         val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
         return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
