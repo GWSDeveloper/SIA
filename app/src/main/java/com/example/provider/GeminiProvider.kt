@@ -40,7 +40,6 @@ class GeminiProvider(
                         append("- ${tool.name}($paramList): ${tool.description}\n")
                     }
                     append("\nTool protocol: when actions are needed, emit exactly one tool_calls fenced block containing a JSON array of every required registered tool call. Each item has a tool name and params object. Do not include success claims or user-facing messages in the same response as tool calls. The app executes calls and returns actual results; only then give the final answer. For ordinary conversation without tools, reply normally.")
-                    append("\nMusic: route music intent through media_agent and derive query/action from the actual request and conversation context. No hardcoded track names or phrase matching. Only report playback success when execution results confirm it.")
                     append("\nCompound requests: include all required independent tool calls in the same array. The number of calls depends on intent, not a fixed count. After results return, choose any further necessary tools or provide the final answer. Never repeat completed calls or claim success before actual results confirm it.")
                     append("\nReply in Roman-script Hinglish by default when the user speaks Hinglish; reply in English when the user speaks English. Use Devanagari Hindi only when the user clearly speaks/writes in Hindi or requests it. Keep spoken replies concise and natural, and never include raw JSON in the spoken response.")
                 }
