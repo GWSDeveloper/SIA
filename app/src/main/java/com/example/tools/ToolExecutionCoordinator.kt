@@ -98,10 +98,17 @@ class ToolExecutionCoordinator(
             pendingCalls = finalOutput.toolCalls
         }
 
+        val executableCallsRemain = pendingCalls.distinctBy(::signature).any { call ->
+            val key = signature(call)
+            val previous = executionResults.lastOrNull { signature(it.first) == key }?.second
+            previous == null ||
+                (previous.status == ToolResultStatus.RETRYABLE_ERROR && (attemptsBySignature[key] ?: 1) < 3)
+        }
+
         return Outcome(
             executionResults = executionResults,
             finalOutput = finalOutput,
-            roundLimitReached = pendingCalls.isNotEmpty() && rounds >= maxRounds,
+            roundLimitReached = pendingCalls.isNotEmpty() && rounds >= maxRounds && executableCallsRemain,
             followUpFailed = followUpFailed
         )
     }
