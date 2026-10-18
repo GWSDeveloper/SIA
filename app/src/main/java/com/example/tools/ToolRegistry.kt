@@ -8,8 +8,8 @@ object ToolRegistry {
      * each agent owns its operation-specific validation and implementation.
      */
     /**
-     * The LLM sees simple, individual functions rather than broad agent/router tools.
-     * Only capabilities with an executor implementation are advertised here.
+     * Simple individual functions exposed directly to the LLM.
+     * Only tools backed by an executor implementation are listed.
      */
     fun getAgentTools(): List<ToolDefinition> = listOf(
         ToolDefinition("toggle_torch", "Turn the phone flashlight on, off, or toggle it.", listOf(
@@ -34,9 +34,6 @@ object ToolRegistry {
             ToolParameter("app_name", "string", "Installed app name")
         )),
         ToolDefinition("close_app", "Return to the Android home screen. Android does not allow force-stopping arbitrary apps.", emptyList()),
-        ToolDefinition("call", "Call a saved contact by exact name or a phone number. Ambiguous contacts must be clarified.", listOf(
-            ToolParameter("name", "string", "Saved contact name or phone number")
-        )),
         ToolDefinition("open_camera", "Open the phone camera app.", emptyList()),
         ToolDefinition("vibrate", "Vibrate the phone for a short duration.", listOf(
             ToolParameter("duration_ms", "number", "Duration in milliseconds, from 1 to 5000")
@@ -45,10 +42,8 @@ object ToolRegistry {
             ToolParameter("number", "string", "Recipient phone number"),
             ToolParameter("message", "string", "SMS body")
         )),
-        ToolDefinition("user_perma_memory", "Save a durable user fact or list saved facts. Use action save with key/value, or action list.", listOf(
-            ToolParameter("action", "string", "save or list"),
-            ToolParameter("key", "string", "Short memory key", false),
-            ToolParameter("value", "string", "Fact to remember", false)
+        ToolDefinition("call", "Call a saved contact by exact name or a phone number. Ambiguous contacts must be clarified.", listOf(
+            ToolParameter("name", "string", "Saved contact name or phone number")
         )),
         ToolDefinition("web_search", "Search the live web with Tavily and return source evidence for answering the user's question.", listOf(
             ToolParameter("query", "string", "Question or search terms")
@@ -61,6 +56,11 @@ object ToolRegistry {
         ToolDefinition("stop", "Stop current media playback.", emptyList()),
         ToolDefinition("next", "Skip to the next media track.", emptyList()),
         ToolDefinition("previous", "Go to the previous media track.", emptyList()),
+        ToolDefinition("user_perma_memory", "Save a durable user fact or list saved facts. Use action save with key/value, or action list.", listOf(
+            ToolParameter("action", "string", "save or list"),
+            ToolParameter("key", "string", "Short memory key", false),
+            ToolParameter("value", "string", "Fact to remember", false)
+        )),
         ToolDefinition("open_system_settings", "Open a relevant Android settings screen.", listOf(
             ToolParameter("type", "string", "wifi, bluetooth, sound, display, apps, battery, mobile_data, or general")
         )),
@@ -157,7 +157,8 @@ object ToolRegistry {
             parameters = listOf(
                 ToolParameter("title", "string", "Note or file title"),
                 ToolParameter("content", "string", "The note content or text")
-            )        ),
+            )
+        ),
         ToolDefinition(
             name = "export_app_apk",
             description = "Download, export, share, or install the SIA v2 APK directly onto the Android phone.",
