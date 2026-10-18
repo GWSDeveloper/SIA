@@ -134,9 +134,10 @@ class ToolExecutionCoordinator(
 
         for ((name, value) in call.toolParams) {
             val parameter = parameters[name] ?: continue
+            if (value.isBlank() && !parameter.required) continue
             when (parameter.type.lowercase()) {
-                "number" -> if (value.toDoubleOrNull() == null) {
-                    return "Parameter '$name' for ${call.toolName} must be a number."
+                "number" -> if (value.toLongOrNull() == null) {
+                    return "Parameter '$name' for ${call.toolName} must be a whole number."
                 }
                 "boolean" -> if (!value.equals("true", true) && !value.equals("false", true)) {
                     return "Parameter '$name' for ${call.toolName} must be true or false."
