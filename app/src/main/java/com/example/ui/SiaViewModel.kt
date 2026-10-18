@@ -314,7 +314,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         // give it up to two synthesis-only retries with the retrieved evidence and no tools,
         // so it cannot loop into duplicate side effects or claim it answered without facts.
         val hasSuccessfulWebSearch = executionResults.any {
-            it.first.toolName in setOf("web_agent", "web_search") && it.second.status == ToolResultStatus.SUCCESS
+            it.first.toolName == "web_search" && it.second.status == ToolResultStatus.SUCCESS
         }
         fun needsWebAnswer(text: String): Boolean {
             val value = text.trim()
@@ -327,7 +327,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (hasSuccessfulWebSearch && needsWebAnswer(finalModelText)) {
             val evidence = executionResults.filter {
-                it.first.toolName in setOf("web_agent", "web_search") && it.second.status == ToolResultStatus.SUCCESS
+                it.first.toolName == "web_search" && it.second.status == ToolResultStatus.SUCCESS
             }.joinToString("\n\n") { it.second.message }
             for (attempt in 0 until 2) {
                 if (!needsWebAnswer(finalModelText)) break
@@ -352,7 +352,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val webIssue = executionResults.firstOrNull {
-            it.first.toolName in setOf("web_agent", "web_search") && it.second.status != ToolResultStatus.SUCCESS
+            it.first.toolName == "web_search" && it.second.status != ToolResultStatus.SUCCESS
         }
         if (webIssue != null && executionResults.none { it.second.status == ToolResultStatus.SUCCESS }) {
             val detail = webIssue.second.message
@@ -371,7 +371,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
         // Surface ambiguous contact matches as a clarification, without exposing technical errors.
         val ambiguousContactResult = executionResults.firstOrNull {
-            it.first.toolName in setOf("contact_agent", "call") && it.second.message.startsWith("AMBIGUOUS_CONTACTS:")
+            it.first.toolName == "call" && it.second.message.startsWith("AMBIGUOUS_CONTACTS:")
         }
         if (ambiguousContactResult != null) {
             val rawOptions = ambiguousContactResult.second.message.substringAfter("Ask which one to call: ", "")
@@ -382,7 +382,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val contactIssue = executionResults.firstOrNull {
-            it.first.toolName in setOf("contact_agent", "call") && it.second.status != ToolResultStatus.SUCCESS
+            it.first.toolName == "call" && it.second.status != ToolResultStatus.SUCCESS
         }
         if (contactIssue != null && executionResults.none { it.second.status == ToolResultStatus.SUCCESS }) {
             val detail = contactIssue.second.message
@@ -422,12 +422,9 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         val failedResults = executionResults.filter { it.second.status != ToolResultStatus.SUCCESS }
 
         val hasNamedMusicPlay = executionResults.any { (call, _) ->
-            (call.toolName == "play_music" && !call.toolParams["query"].isNullOrBlank()) ||
-                (call.toolName == "media_agent" &&
-                    call.toolParams["action"]?.lowercase(Locale.ROOT) in setOf("play", "resume") &&
-                    !call.toolParams["query"].isNullOrBlank())
+            call.toolName == "play_music" && !call.toolParams["query"].isNullOrBlank()
         }
-        val hasWebSearch = executionResults.any { it.first.toolName in setOf("web_agent", "web_search") }
+        val hasWebSearch = executionResults.any { it.first.toolName == "web_search" }
         val genericWebAcknowledgement = finalModelText.isBlank() || finalModelText.contains("web search kar liya", ignoreCase = true) ||
             finalModelText.contains("search complete", ignoreCase = true) ||
             finalModelText.contains("search kar li", ignoreCase = true)
