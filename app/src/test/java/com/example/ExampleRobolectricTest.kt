@@ -64,15 +64,16 @@ class ExampleRobolectricTest {
     fun `compound tool protocol preserves nested parameter text and every action`() {
         val raw = """Preparing the requested actions.
 ```tool_calls
-[{"tool":"send_sms","params":{"number":"1234567890","message":"Hello {friend}, use } carefully"}},{"tool":"open_app","params":{"app_name":"WhatsApp"}}]
+[{"tool":"send_sms","params":{"number":"1234567890","message":"Hello {friend}, use } carefully"}},{"tool":"open_app","params":{"app_name":"WhatsApp"}},{"tool":"set_volume","params":{"level":37.0}}]
 ```
 """
         val parsed = ToolCallParser.parse(raw)
 
-        assertEquals(2, parsed.toolCalls.size)
+        assertEquals(3, parsed.toolCalls.size)
         assertEquals("send_sms", parsed.toolCalls[0].toolName)
         assertEquals("Hello {friend}, use } carefully", parsed.toolCalls[0].toolParams["message"])
         assertEquals("WhatsApp", parsed.toolCalls[1].toolParams["app_name"])
+        assertEquals("37", parsed.toolCalls[2].toolParams["level"])
         assertEquals("Preparing the requested actions.", parsed.textReply)
     }
 
