@@ -373,7 +373,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         while (pendingCalls.isNotEmpty() && round < maxToolRounds) {
             round++
             _statusText.value = "Planning/executing actions (step $round)..."
-            val newCalls = pendingCalls.filter { call ->
+            val newCalls = pendingCalls.distinctBy { signatureOf(it) }.filter { call ->
                 val signature = signatureOf(call)
                 val previous = executionResults.lastOrNull { signatureOf(it.first) == signature }?.second
                 when {
