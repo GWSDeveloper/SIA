@@ -432,16 +432,16 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         if (hasSuccessfulWebSearch && needsWebAnswer(finalModelText)) {
             val evidence = executionResults.filter {
                 it.first.toolName in setOf("web_agent", "web_search") && it.second.status == ToolResultStatus.SUCCESS
-            }.joinToString("\\n\\n") { it.second.message }
+            }.joinToString("\n\n") { it.second.message }
             repeat(2) {
                 if (!needsWebAnswer(finalModelText)) return@repeat
                 val synthesisContext = PromptContext(
                     systemPrompt = planningContext.systemPrompt +
-                        "\\nYou are synthesizing a web answer, not executing tools. Use only the evidence below. Answer the original question directly with specific facts and sources where available. If the evidence does not contain the answer, clearly say it could not be verified. Never say only that you searched. Do not output tool calls.",
+                        "\nYou are synthesizing a web answer, not executing tools. Use only the evidence below. Answer the original question directly with specific facts and sources where available. If the evidence does not contain the answer, clearly say it could not be verified. Never say only that you searched. Do not output tool calls.",
                     permanentMemory = planningContext.permanentMemory,
                     rollingSummary = planningContext.rollingSummary,
                     recentMessages = planningContext.recentMessages,
-                    currentUserMessage = "Original user request: $originalUserText\\n\\nRetrieved web evidence:\\n$evidence\\n\\nGive the actual answer now, or clearly state that the evidence is insufficient.",
+                    currentUserMessage = "Original user request: $originalUserText\n\nRetrieved web evidence:\n$evidence\n\nGive the actual answer now, or clearly state that the evidence is insufficient.",
                     availableTools = emptyList()
                 )
                 val synthesis = ProviderFactory.createProvider(getApplication()).generateResponse(synthesisContext)
