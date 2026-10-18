@@ -137,21 +137,30 @@ class LocalMusicPlayer(private val context: Context) {
             queue = allTracks
             return
         }
+        // Remove command filler before matching, then require a real title/artist match.
+        // Loose token overlap was allowing unrelated tracks to win (e.g. Humdum -> Saiyaara).
         val queryNorm = normalized(query)
+            .split(" ")
+            .filterNot { it in setOf("play", "please", "song", "gaana", "gana", "wala", "wali", "waala", "waali", "kar", "karo", "do", "baja", "bajao", "chala", "chalao", "mere", "phone", "mein", "me") }
+            .joinToString(" ")
+            .trim()
+        if (queryNorm.isBlank()) {
+            queue = emptyList()
+            return
+        }
         val queryLatin = transliterate(queryNorm)
-        // Score title and artist matches; exact/near-exact titles rank above substring hits.
         queue = allTracks.mapNotNull { track ->
             val title = normalized(track.title)
             val artist = normalized(track.artist)
             val titleLatin = transliterate(title)
             val artistLatin = transliterate(artist)
             val score = when {
-                title == queryNorm -> 100
-                titleLatin == queryLatin -> 98
-                title.contains(queryNorm) || artist.contains(queryNorm) -> 90
-                titleLatin.contains(queryLatin) || artistLatin.contains(queryLatin) -> 88
-                tokenOverlap(queryLatin, "$titleLatin $artistLatin") >= 0.75 -> 70
-                tokenOverlap(queryNorm, "$title $artist") >= 0.75 -> 65
+                title == queryNorm || titleLatin == queryLatin -> 100
+                title.contains(queryNorm) || titleLatin.contains(queryLatin) -> 95
+                queryNorm.contains(title) && title.length >= 3 -> 92
+                queryLatin.contains(titleLatin) && titleLatin.length >= 3 -> 90
+                artist == queryNorm || artistLatin == queryLatin -> 85
+                artist.contains(queryNorm) || artistLatin.contains(queryLatin) -> 80
                 else -> 0
             }
             if (score == 0) null else track.copy(matchScore = score)
