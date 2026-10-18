@@ -86,91 +86,9 @@ object ToolRegistry {
         ToolDefinition("list_all_commands", "List the capabilities available in this build.", emptyList())
     )
 
-    fun getAllTools(): List<ToolDefinition> = listOf(
-        ToolDefinition(
-            name = "open_app",
-            description = "Launch an installed Android application by name (e.g. YouTube, Camera, WhatsApp, Spotify, Chrome, Settings).",
-            parameters = listOf(
-                ToolParameter("app_name", "string", "The name of the application to open")
-            )
-        ),
-        ToolDefinition(
-            name = "web_search",
-            description = "Search the live web using the configured Tavily API and return source excerpts for answer synthesis.",
-            parameters = listOf(
-                ToolParameter("query", "string", "The search query string")
-            )
-        ),
-        ToolDefinition(
-            name = "toggle_torch",
-            description = "Control the device flashlight (turn ON, turn OFF, or TOGGLE).",
-            parameters = listOf(
-                ToolParameter("state", "string", "Desired state: 'on', 'off', or 'toggle'")
-            ),
-            requiredPermissions = listOf("CAMERA")
-        ),
-        ToolDefinition(
-            name = "control_media",
-            description = "Control music or media playback on the device.",
-            parameters = listOf(
-                ToolParameter("action", "string", "Playback action: 'play_pause', 'play', 'pause', 'next', 'previous'")
-            )
-        ),
-        ToolDefinition(
-            name = "set_volume",
-            description = "Adjust music and media volume percentage from 0 to 100.",
-            parameters = listOf(
-                ToolParameter("level", "number", "Target volume level percentage from 0 to 100")
-            )
-        ),
-        ToolDefinition(
-            name = "open_system_settings",
-            description = "Open specific Android system settings (wifi, bluetooth, sound, display, apps, battery, general).",
-            parameters = listOf(
-                ToolParameter("type", "string", "Settings category: 'wifi', 'bluetooth', 'sound', 'display', 'apps', 'battery'")
-            )
-        ),
-        ToolDefinition(
-            name = "schedule_task",
-            description = "Schedule a task or reminder for a future time or delay.",
-            parameters = listOf(
-                ToolParameter("description", "string", "What needs to be done or reminded"),
-                ToolParameter("delay_minutes", "number", "Delay in minutes from now (e.g. 10 for 10 minutes later)", false),
-                ToolParameter("action_type", "string", "Action type (e.g. 'REMINDER', 'TOGGLE_TORCH', 'WEB_SEARCH')", false)
-            ),
-            requiredPermissions = listOf("SCHEDULE_EXACT_ALARM", "POST_NOTIFICATIONS")
-        ),
-        ToolDefinition(
-            name = "get_task_status",
-            description = "Query pending or scheduled future tasks.",
-            parameters = listOf(
-                ToolParameter("task_id", "string", "Optional specific task ID to check", false)
-            )
-        ),
-        ToolDefinition(
-            name = "cancel_scheduled_task",
-            description = "Cancel a previously scheduled task by ID.",
-            parameters = listOf(
-                ToolParameter("task_id", "string", "The task ID to cancel")
-            )
-        ),
-        ToolDefinition(
-            name = "create_workspace_note",
-            description = "Create or save a quick note or text file into the SIA internal workspace.",
-            parameters = listOf(
-                ToolParameter("title", "string", "Note or file title"),
-                ToolParameter("content", "string", "The note content or text")
-            )
-        ),
-        ToolDefinition(
-            name = "export_app_apk",
-            description = "Download, export, share, or install the SIA v2 APK directly onto the Android phone.",
-            parameters = emptyList()
-        ),
-        ToolDefinition(
-            name = "list_all_commands",
-            description = "Discover all available capabilities, tools, and permissions supported by SIA.",
-            parameters = emptyList()
-        )
-    )
+    /**
+     * Backwards-compatible alias. There is one source of truth for every LLM-facing tool.
+     */
+    fun getAllTools(): List<ToolDefinition> = getAgentTools()
+
 }
