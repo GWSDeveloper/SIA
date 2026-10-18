@@ -37,6 +37,19 @@ object ToolRegistry {
         ToolDefinition("call", "Call a saved contact by exact name or a phone number. Ambiguous contacts must be clarified.", listOf(
             ToolParameter("name", "string", "Saved contact name or phone number")
         )),
+        ToolDefinition("open_camera", "Open the phone camera app.", emptyList()),
+        ToolDefinition("vibrate", "Vibrate the phone for a short duration.", listOf(
+            ToolParameter("duration_ms", "number", "Duration in milliseconds, from 1 to 5000")
+        )),
+        ToolDefinition("send_sms", "Open the SMS composer with a recipient and message. The user must review and tap Send; do not claim the SMS was sent.", listOf(
+            ToolParameter("number", "string", "Recipient phone number"),
+            ToolParameter("message", "string", "SMS body")
+        )),
+        ToolDefinition("user_perma_memory", "Save a durable user fact or list saved facts. Use action save with key/value, or action list.", listOf(
+            ToolParameter("action", "string", "save or list"),
+            ToolParameter("key", "string", "Short memory key", false),
+            ToolParameter("value", "string", "Fact to remember", false)
+        )),
         ToolDefinition("web_search", "Search the live web with Tavily and return source evidence for answering the user's question.", listOf(
             ToolParameter("query", "string", "Question or search terms")
         )),
