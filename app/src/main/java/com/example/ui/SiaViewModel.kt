@@ -329,8 +329,8 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             val evidence = executionResults.filter {
                 it.first.toolName in setOf("web_agent", "web_search") && it.second.status == ToolResultStatus.SUCCESS
             }.joinToString("\n\n") { it.second.message }
-            repeat(2) {
-                if (!needsWebAnswer(finalModelText)) return@repeat
+            for (attempt in 0 until 2) {
+                if (!needsWebAnswer(finalModelText)) break
                 val synthesisContext = PromptContext(
                     systemPrompt = planningContext.systemPrompt +
                         "\nYou are synthesizing a web answer, not executing tools. Use only the evidence below. Answer the original question directly with specific facts and sources where available. If the evidence does not contain the answer, clearly say it could not be verified. Never say only that you searched. Do not output tool calls.",
@@ -345,7 +345,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     val candidate = synthesis.getOrThrow()
                     if (candidate.toolCalls.isEmpty() && !needsWebAnswer(candidate.textReply)) {
                         finalModelText = candidate.textReply
-                        return@repeat
+                        break
                     }
                 }
             }
