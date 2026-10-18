@@ -60,7 +60,10 @@ class AndroidActionExecutor(private val context: Context) {
                 }
                 "list_music" -> localMusicPlayer.listTracks(params["query"] ?: "")
                 "play_music" -> handleMediaAgent(mapOf("action" to "play", "query" to (params["query"] ?: "")))
-                "play", "pause", "stop", "next", "previous" -> handleControlMedia(name)
+                // Route controls through the shared media-session/local-player path. The old
+                // global media-key path reported success even when it could not reach SIA's
+                // own MediaPlayer, which made local music impossible to stop reliably.
+                "play", "pause", "stop", "next", "previous" -> handleMediaAgent(mapOf("action" to name))
                 "device_agent" -> handleDeviceAgent(params)
                 "app_agent" -> handleAppAgent(params)
                 "contact_agent" -> if (params["action"] == "call_number") contactAgent.callSpecificNumber(params["number"] ?: "") else contactAgent.callContact(params["name"] ?: "")
