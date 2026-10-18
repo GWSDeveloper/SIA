@@ -48,6 +48,9 @@ object ToolRegistry {
         ToolDefinition("web_search", "Search the live web with Tavily and return source evidence for answering the user's question.", listOf(
             ToolParameter("query", "string", "Question or search terms")
         )),
+        ToolDefinition("list_music", "List local music tracks, optionally filtered by title or artist, without changing playback.", listOf(
+            ToolParameter("query", "string", "Optional title or artist filter", false)
+        )),
         ToolDefinition("play_music", "Play a specifically requested song from local music files. Do not substitute an unrelated song.", listOf(
             ToolParameter("query", "string", "Song title or artist")
         )),
