@@ -114,6 +114,26 @@ class LocalMusicPlayer(private val context: Context) {
         }
     }
 
+    @Synchronized
+    fun currentTrack(): ToolExecutionResult {
+        val active = player
+            ?: return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "SIA's local player has no current track.")
+        return try {
+            if (!active.isPlaying) {
+                ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "SIA's local player is not currently playing.")
+            } else {
+                val track = queue.getOrNull(currentIndex)
+                    ?: return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "SIA could not identify its current local track.")
+                ToolExecutionResult(
+                    ToolResultStatus.SUCCESS,
+                    "Current SIA local track: ${track.title} by ${track.artist}."
+                )
+            }
+        } catch (_: Exception) {
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "SIA could not verify the current local track.")
+        }
+    }
+
     private fun hasAudioPermission(): Boolean {
         val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
         return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
