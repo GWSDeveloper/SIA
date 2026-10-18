@@ -348,12 +348,8 @@ class SiaFloatingService : Service() {
                         content = it.text
                     )
                 }
-            val systemPrompt = buildString {
-                append("You are ${preferences.getAssistantName()}, a personal Android assistant by FAST. You are a woman and speak naturally, warmly and concisely.\n")
-                append("Use Roman-script Hinglish when the user speaks Hinglish and English when they speak English.\n")
-                append("Use only the individual tools in the supplied catalogue. For compound requests, emit every independent required tool call in one tool_calls JSON array. Do not claim success before tool results.\n")
-                append("Never repeat completed side effects. Retry only RETRYABLE_ERROR operations, with a maximum of 3 attempts for an exact call. Respect permissions and Android platform limits.\n")
-            }
+            val systemPrompt = com.example.provider.SiaSystemPrompt.build(preferences.getAssistantName())
+
             val initialContext = PromptContext(
                 systemPrompt = systemPrompt,
                 permanentMemory = memory.getPermanentMemoryText(),
