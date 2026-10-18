@@ -378,7 +378,7 @@ class SiaFloatingService : Service() {
 
             while (pendingCalls.isNotEmpty() && rounds < 3) {
                 rounds++
-                val callsToRun = pendingCalls.filter { call ->
+                val callsToRun = pendingCalls.distinctBy { signature(it) }.filter { call ->
                     val key = signature(call)
                     val previous = executionResults.lastOrNull { signature(it.first) == key }?.second
                     previous == null || (previous.status == ToolResultStatus.RETRYABLE_ERROR && (attempts[key] ?: 1) < 3)
