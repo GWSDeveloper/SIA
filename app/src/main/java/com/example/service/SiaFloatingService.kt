@@ -361,10 +361,10 @@ class SiaFloatingService : Service() {
 
             val first = ProviderFactory.createProvider(this@SiaFloatingService).generateResponse(initialContext)
             if (first.isFailure) {
-                val error = "AI request failed: ${first.exceptionOrNull()?.message ?: "provider unavailable"}"
+                val userMessage = "AI provider request failed. Check the selected provider and API key in Settings, then try again."
                 launch(Dispatchers.Main) {
-                    statusTextView?.text = error
-                    speechManager?.speak(error)
+                    statusTextView?.text = userMessage
+                    speechManager?.speak(userMessage)
                     updateOrbVisualState(AssistantVisualState.ERROR)
                 }
                 return@launch
@@ -389,8 +389,13 @@ class SiaFloatingService : Service() {
             }
 
             val spoken = finalText.trim().takeIf { it.isNotBlank() && !it.contains("tool_calls") }
-                ?: executionResults.joinToString(". ") { it.second.message }.ifBlank {
-                    "I couldn't get a usable response. Please try again."
+                ?: when {
+                    executionResults.isEmpty() -> "I couldn't get a usable response. Please try again."
+                    executionResults.all { it.second.status == ToolResultStatus.SUCCESS } ->
+                        "The actions ran, but I couldn't get a final confirmation. Please check the phone."
+                    executionResults.any { it.second.status == ToolResultStatus.SUCCESS } ->
+                        "Some requested actions completed, but others could not be confirmed. Please check the phone and required permissions."
+                    else -> "I couldn't complete that action. Please check the required permission or setting."
                 }
 
             dao.insertMessage(
