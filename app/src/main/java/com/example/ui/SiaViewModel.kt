@@ -414,6 +414,46 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // Search is not a user-facing answer. If the model only acknowledges searching,
+        // give it up to two synthesis-only retries with the retrieved evidence and no tools,
+        // so it cannot loop into duplicate side effects or claim it answered without facts.
+        val hasSuccessfulWebSearch = executionResults.any {
+            it.first.toolName in setOf("web_agent", "web_search") && it.second.status == ToolResultStatus.SUCCESS
+        }
+        fun needsWebAnswer(text: String): Boolean {
+            val value = text.trim()
+            return value.isBlank() ||
+                value.equals("Web search kar liya.", ignoreCase = true) ||
+                value.equals("Web search kar liya", ignoreCase = true) ||
+                value.equals("Searched the web.", ignoreCase = true) ||
+                value.equals("Search complete.", ignoreCase = true) ||
+                value.equals("Main sun rahi hoon.", ignoreCase = true)
+        }
+        if (hasSuccessfulWebSearch && needsWebAnswer(finalModelText)) {
+            val evidence = executionResults.filter {
+                it.first.toolName in setOf("web_agent", "web_search") && it.second.status == ToolResultStatus.SUCCESS
+            }.joinToString("\\n\\n") { it.second.message }
+            repeat(2) {
+                val synthesisContext = PromptContext(
+                    systemPrompt = planningContext.systemPrompt +
+                        "\\nYou are synthesizing a web answer, not executing tools. Use only the evidence below. Answer the original question directly with specific facts and sources where available. If the evidence does not contain the answer, clearly say it could not be verified. Never say only that you searched. Do not output tool calls.",
+                    permanentMemory = planningContext.permanentMemory,
+                    rollingSummary = planningContext.rollingSummary,
+                    recentMessages = planningContext.recentMessages,
+                    currentUserMessage = "Original user request: $originalUserText\\n\\nRetrieved web evidence:\\n$evidence\\n\\nGive the actual answer now, or clearly state that the evidence is insufficient.",
+                    availableTools = emptyList()
+                )
+                val synthesis = ProviderFactory.createProvider(getApplication()).generateResponse(synthesisContext)
+                if (synthesis.isSuccess) {
+                    val candidate = synthesis.getOrThrow()
+                    if (candidate.toolCalls.isEmpty() && !needsWebAnswer(candidate.textReply)) {
+                        finalModelText = candidate.textReply
+                        return@repeat
+                    }
+                }
+            }
+        }
+
         val webIssue = executionResults.firstOrNull {
             it.first.toolName in setOf("web_agent", "web_search") && it.second.status != ToolResultStatus.SUCCESS
         }
