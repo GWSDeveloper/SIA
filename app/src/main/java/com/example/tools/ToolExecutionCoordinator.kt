@@ -4,7 +4,8 @@ import android.content.Context
 import com.example.provider.LlmCallResult
 import com.example.provider.PromptContext
 import com.example.provider.ProviderFactory
-import com.example.provider.SingleToolCall\nimport com.example.provider.TurnDirective
+import com.example.provider.SingleToolCall
+import com.example.provider.TurnDirective
 
 /**
  * One shared tool-execution loop for the main screen and floating overlay.

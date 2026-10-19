@@ -52,7 +52,11 @@ class SiaPreferences(private val context: Context) {
     private val _wakeWordEnabled = MutableStateFlow(isWakeWordEnabled())
     val wakeWordEnabled: StateFlow<Boolean> = _wakeWordEnabled.asStateFlow()
 
-    fun getUserName(): String = prefs.getString("user_name", "")?.trim().orEmpty()\n\n    fun setUserName(name: String) { prefs.edit().putString("user_name", name.trim()).apply() }\n\n    fun getAssistantName(): String = prefs.getString("assistant_name", "SIA") ?: "SIA"
+    fun getUserName(): String = prefs.getString("user_name", "")?.trim().orEmpty()
+
+    fun setUserName(name: String) { prefs.edit().putString("user_name", name.trim()).apply() }
+
+    fun getAssistantName(): String = prefs.getString("assistant_name", "SIA") ?: "SIA"
 
     fun setAssistantName(name: String) {
         val trimmed = name.trim().ifEmpty { "SIA" }
