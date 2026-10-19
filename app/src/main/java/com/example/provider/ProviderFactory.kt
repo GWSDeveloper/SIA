@@ -24,7 +24,7 @@ object ProviderFactory {
         val providers = order.distinct().mapNotNull { type ->
             val key = prefs.getApiKey(type)
             if (type == LlmProviderType.LOCAL_OFFLINE || key.isBlank()) return@mapNotNull null
-            val model = if (type == selected) prefs.getModelName() else type.defaultModel
+            val model = prefs.getModelName(type)
             val provider: LlmProvider = when (type) {
                 LlmProviderType.GEMINI -> GeminiProvider(key, model)
                 LlmProviderType.GROQ -> OpenAiCompatibleProvider(key, type.baseUrl, model, "Groq")

@@ -116,7 +116,7 @@ fun SettingsScreen(
     var userName by remember { mutableStateOf(prefs.getUserName()) }
     var assistantName by remember { mutableStateOf(prefs.getAssistantName()) }
     var selectedProvider by remember { mutableStateOf(prefs.getSelectedProvider()) }
-    var modelName by remember { mutableStateOf(prefs.getModelName()) }
+    var modelName by remember { mutableStateOf(prefs.getModelName(selectedProvider))
     var apiKeyText by remember { mutableStateOf(prefs.getApiKey(selectedProvider)) }
     var isApiKeyVisible by remember { mutableStateOf(false) }
 
@@ -700,7 +700,7 @@ fun SettingsScreen(
                                 onClick = {
                                     selectedProvider = provider
                                     prefs.setSelectedProvider(provider)
-                                    modelName = provider.defaultModel
+                                    modelName = prefs.getModelName(provider)
                                     apiKeyText = prefs.getApiKey(provider)
                                     isProviderDropdownExpanded = false
                                 }
@@ -715,7 +715,7 @@ fun SettingsScreen(
                     value = modelName,
                     onValueChange = {
                         modelName = it
-                        prefs.setModelName(it)
+                        prefs.setModelName(it, selectedProvider)
                     },
                     label = { Text("Model Identifier", color = SiaTextSecondary) },
                     colors = OutlinedTextFieldDefaults.colors(

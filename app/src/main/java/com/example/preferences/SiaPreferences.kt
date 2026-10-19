@@ -74,20 +74,31 @@ class SiaPreferences(private val context: Context) {
     }
 
     fun setSelectedProvider(provider: LlmProviderType) {
+        val previous = getSelectedProvider()
+        if (!prefs.contains("model_name_${previous.name}") && prefs.contains("model_name")) {
+            prefs.edit().putString("model_name_${previous.name}", prefs.getString("model_name", previous.defaultModel)).apply()
+        }
         prefs.edit().putString("provider_type", provider.name).apply()
         _selectedProvider.value = provider
-        setModelName(provider.defaultModel)
+        _modelName.value = getModelName(provider)
     }
 
-    fun getModelName(): String {
-        return prefs.getString("model_name", getSelectedProvider().defaultModel)
-            ?: getSelectedProvider().defaultModel
+    fun getModelName(provider: LlmProviderType = getSelectedProvider()): String {
+        val key = "model_name_${provider.name}"
+        if (prefs.contains(key)) return prefs.getString(key, provider.defaultModel) ?: provider.defaultModel
+        if (provider == getSelectedProvider() && prefs.contains("model_name")) {
+            return prefs.getString("model_name", provider.defaultModel) ?: provider.defaultModel
+        }
+        return provider.defaultModel
     }
 
-    fun setModelName(model: String) {
-        val trimmed = model.trim().ifEmpty { getSelectedProvider().defaultModel }
-        prefs.edit().putString("model_name", trimmed).apply()
-        _modelName.value = trimmed
+    fun setModelName(model: String, provider: LlmProviderType = getSelectedProvider()) {
+        val trimmed = model.trim().ifEmpty { provider.defaultModel }
+        prefs.edit().putString("model_name_${provider.name}", trimmed).apply()
+        if (provider == getSelectedProvider()) {
+            prefs.edit().putString("model_name", trimmed).apply()
+            _modelName.value = trimmed
+        }
     }
 
     fun getApiKey(provider: LlmProviderType): String {

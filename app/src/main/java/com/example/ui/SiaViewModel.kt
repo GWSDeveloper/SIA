@@ -208,6 +208,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     timestamp = System.currentTimeMillis()
                 )
             )
+            memoryManager.persistJsonSnapshot()
 
             // Use the unified LLM planner for every turn; local phrase parsing must not
             // consume a compound request or bypass web research and conversational intent.
@@ -270,8 +271,6 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                 // Keep technical provider errors visible in the UI, but never speak them aloud.
             }
 
-            // Check rolling summarization
-            memoryManager.checkAndSummarizeIfNeeded()
         }
     }
 
@@ -499,6 +498,8 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     isSpoken = isFromVoice
                 )
             )
+            memoryManager.persistJsonSnapshot()
+            memoryManager.checkAndSummarizeIfNeeded()
         }
 
         if (preferences.isAutoSpeakEnabled()) {

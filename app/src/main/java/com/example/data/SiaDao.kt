@@ -27,6 +27,9 @@ interface SiaDao {
     @Update
     suspend fun updateMessage(message: ConversationEntity)
 
+    @Query("DELETE FROM conversation_messages WHERE id <= :messageId")
+    suspend fun deleteMessagesUpTo(messageId: Long)
+
     @Query("DELETE FROM conversation_messages")
     suspend fun clearAllMessages()
 
