@@ -28,7 +28,6 @@ import com.example.speech.AssistantVisualState
 import com.example.ui.theme.SiaAmber
 import com.example.ui.theme.SiaCyan
 import com.example.ui.theme.SiaGreen
-import com.example.ui.theme.SiaPink
 import com.example.ui.theme.SiaRed
 import com.example.ui.theme.SiaViolet
 import kotlin.math.cos
@@ -110,14 +109,14 @@ fun AnimatedOrb(
 
     // Palette per state
     val (primaryColor, secondaryColor, coreColor) = when (state) {
-        AssistantVisualState.IDLE -> Triple(SiaCyan, SiaViolet, Color(0xFF00E5FF))
-        AssistantVisualState.PREPARING -> Triple(SiaAmber, SiaCyan, Color(0xFFFFD54F))
-        AssistantVisualState.LISTENING -> Triple(SiaGreen, SiaCyan, Color(0xFF00E676))
-        AssistantVisualState.THINKING -> Triple(SiaViolet, SiaPink, Color(0xFFE040FB))
-        AssistantVisualState.EXECUTING -> Triple(SiaCyan, SiaPink, Color(0xFF7C4DFF))
-        AssistantVisualState.SPEAKING -> Triple(SiaCyan, SiaViolet, Color(0xFF18FFFF))
-        AssistantVisualState.PAUSED -> Triple(SiaAmber, SiaViolet, Color(0xFFFFB300))
-        AssistantVisualState.ERROR -> Triple(SiaRed, SiaAmber, Color(0xFFFF5252))
+        AssistantVisualState.IDLE -> Triple(Color(0xFF8DEBFF), Color(0xFF2879B8), Color(0xFFB9F5FF))
+        AssistantVisualState.PREPARING -> Triple(Color(0xFFFFC66D), Color(0xFFB77934), Color(0xFFFFE2AC))
+        AssistantVisualState.LISTENING -> Triple(Color(0xFF91F3F0), Color(0xFF278DAA), Color(0xFFD2FFFF))
+        AssistantVisualState.THINKING -> Triple(Color(0xFF9BCBFF), Color(0xFF4669B4), Color(0xFFD9E9FF))
+        AssistantVisualState.EXECUTING -> Triple(Color(0xFF8DEBFF), Color(0xFF4D80D8), Color(0xFFB9F5FF))
+        AssistantVisualState.SPEAKING -> Triple(Color(0xFF9BEAFF), Color(0xFF3B8CC8), Color(0xFFD8FAFF))
+        AssistantVisualState.PAUSED -> Triple(Color(0xFFB8C5D6), Color(0xFF667A93), Color(0xFFE6EDF5))
+        AssistantVisualState.ERROR -> Triple(Color(0xFFFF8D9B), Color(0xFF9D4557), Color(0xFFFFD7DC))
     }
 
     Box(
@@ -231,7 +230,7 @@ fun AnimatedOrb(
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.98f),
+                        Color(0xFFEAFBFF).copy(alpha = 0.92f),
                         coreColor.copy(alpha = 0.88f),
                         primaryColor.copy(alpha = 0.70f),
                         secondaryColor.copy(alpha = 0.35f)
@@ -248,7 +247,7 @@ fun AnimatedOrb(
 
             // Specular core light glint
             drawCircle(
-                color = Color.White.copy(alpha = 0.4f),
+                color = Color.White.copy(alpha = 0.24f),
                 radius = coreRadius * 0.35f,
                 center = center.copy(
                     x = center.x - (coreRadius * 0.25f),
