@@ -108,7 +108,7 @@ class MemoryManager(private val context: Context) {
         persistJsonSnapshot()
     }
 
-    /** Persist summary plus the active transcript as readable JSON in app-private storage. */
+    /** Persist summary plus the active transcript as readable JSON in app-private storage; this file mirrors Room's active memory state. */
     suspend fun persistJsonSnapshot() = withContext(Dispatchers.IO) {
         val root = JSONObject()
         root.put("summarized", dao.getSummary()?.summaryText.orEmpty())
