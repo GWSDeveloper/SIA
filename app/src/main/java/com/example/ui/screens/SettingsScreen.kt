@@ -113,7 +113,8 @@ fun SettingsScreen(
     val prefs = viewModel.preferences
     val coroutineScope = rememberCoroutineScope()
 
-    var userName by remember { mutableStateOf(prefs.getUserName()) }\n    var assistantName by remember { mutableStateOf(prefs.getAssistantName()) }
+    var userName by remember { mutableStateOf(prefs.getUserName()) }\n    var userName by remember { mutableStateOf(prefs.getUserName()) }
+    var assistantName by remember { mutableStateOf(prefs.getAssistantName()) }
     var selectedProvider by remember { mutableStateOf(prefs.getSelectedProvider()) }
     var modelName by remember { mutableStateOf(prefs.getModelName()) }
     var apiKeyText by remember { mutableStateOf(prefs.getApiKey(selectedProvider)) }
@@ -181,6 +182,13 @@ fun SettingsScreen(
                     color = SiaTextSecondary,
                     fontSize = 13.sp
                 )
+            }
+        }
+
+        item {
+            SettingsCard(title = "Your Name", icon = Icons.Default.Psychology, accentColor = SiaPink) {
+                OutlinedTextField(value = userName, onValueChange = { userName = it; prefs.setUserName(it) }, label = { Text("What should SIA call you?", color = SiaTextSecondary) }, modifier = Modifier.fillMaxWidth().testTag("settings_user_name_input"), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = SiaCyan, unfocusedBorderColor = SiaBorder, focusedTextColor = SiaTextPrimary, unfocusedTextColor = SiaTextPrimary))
+                Text("SIA will use your name naturally in conversations.", color = SiaTextMuted, fontSize = 11.sp)
             }
         }
 
