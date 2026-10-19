@@ -11,7 +11,7 @@ import org.json.JSONObject
  */
 object ToolCallParser {
     fun parse(rawText: String): LlmCallResult {
-        val marker = Regex("(?i)\\\\[\\\\[SIA_STATUS:(CONTINUE|FINAL)\\\\]\\\\]")
+        val marker = Regex("""(?i)\[\[SIA_STATUS:(CONTINUE|FINAL)\]\]""")
         val directive = if (marker.find(rawText)?.groupValues?.getOrNull(1)?.equals("CONTINUE", true) == true) TurnDirective.CONTINUE else TurnDirective.FINAL
         val sourceText = rawText.replace(marker, "").trim()
         val calls = mutableListOf<SingleToolCall>()
