@@ -4,7 +4,7 @@ import android.content.Context
 import com.example.provider.LlmCallResult
 import com.example.provider.PromptContext
 import com.example.provider.ProviderFactory
-import com.example.provider.SingleToolCall
+import com.example.provider.SingleToolCall\nimport com.example.provider.TurnDirective
 
 /**
  * One shared tool-execution loop for the main screen and floating overlay.
@@ -42,7 +42,7 @@ class ToolExecutionCoordinator(
         fun signature(call: SingleToolCall): String =
             call.toolName + "|" + call.toolParams.toSortedMap().toString()
 
-        while (pendingCalls.isNotEmpty() && rounds < maxRounds) {
+        while ((pendingCalls.isNotEmpty() || finalOutput.directive == TurnDirective.CONTINUE) && rounds < maxRounds) {
             rounds++
             // Suppress repeated playback requests even when the model changes the query slightly.
             val callsToRun = pendingCalls.distinctBy(::signature)
@@ -58,7 +58,7 @@ class ToolExecutionCoordinator(
                     else -> false
                 }
             }
-            if (callsToRun.isEmpty()) break
+            if (callsToRun.isEmpty() && finalOutput.directive != TurnDirective.CONTINUE) break
 
             for (call in callsToRun) {
                 val key = signature(call)
@@ -88,7 +88,7 @@ class ToolExecutionCoordinator(
                     "Do not repeat successful, terminal, or unsupported calls. Retry only RETRYABLE_ERROR results, " +
                     "with corrected arguments when appropriate, up to 3 attempts total for the exact call. " +
                     "If more work is needed, emit tool_calls for only the necessary registered tools. " +
-                    "Otherwise provide a concise, honest final answer. Never claim failed actions succeeded.",
+                    "Otherwise provide a concise, honest final answer. End with [[SIA_STATUS:CONTINUE]] only when another planning/tool round is genuinely needed; otherwise [[SIA_STATUS:FINAL]]. Never claim failed actions succeeded.",
                 permanentMemory = planningContext.permanentMemory,
                 rollingSummary = planningContext.rollingSummary,
                 recentMessages = planningContext.recentMessages,
@@ -117,7 +117,7 @@ class ToolExecutionCoordinator(
         return Outcome(
             executionResults = executionResults,
             finalOutput = finalOutput,
-            roundLimitReached = pendingCalls.isNotEmpty() && rounds >= maxRounds && executableCallsRemain,
+            roundLimitReached = rounds >= maxRounds && (executableCallsRemain || finalOutput.directive == TurnDirective.CONTINUE),
             followUpFailed = followUpFailed
         )
     }

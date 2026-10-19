@@ -11,11 +11,11 @@ import org.json.JSONObject
  */
 object ToolCallParser {
     fun parse(rawText: String): LlmCallResult {
-        val calls = mutableListOf<SingleToolCall>()
+        val marker = Regex("(?i)\\\\[\\\\[SIA_STATUS:(CONTINUE|FINAL)\\\\]\\\\]")\n        val directive = if (marker.find(rawText)?.groupValues?.getOrNull(1)?.equals("CONTINUE", true) == true) TurnDirective.CONTINUE else TurnDirective.FINAL\n        val sourceText = rawText.replace(marker, "").trim()\n        val calls = mutableListOf<SingleToolCall>()
         val removedRanges = mutableListOf<IntRange>()
 
         val fenced = Regex("(?s)```(?:tool_calls|tools|tool_call|tool|json)?\\s*(.*?)\\s*```")
-        for (match in fenced.findAll(rawText)) {
+        for (match in fenced.findAll(sourceText)) {
             val body = match.groupValues[1].trim()
             val parsed = parseJsonPayload(body)
             val isToolProtocolBlock = match.value.startsWith("```tool_calls") ||
@@ -35,18 +35,18 @@ object ToolCallParser {
         // Some providers omit fences; scan balanced JSON objects/arrays and only accept
         // objects matching our explicit {tool/name, params/arguments/input} protocol.
         var i = 0
-        while (i < rawText.length) {
-            val c = rawText[i]
+        while (i < sourceText.length) {
+            val c = sourceText[i]
             if (c != '{' && c != '[') {
                 i++
                 continue
             }
-            val end = findJsonEnd(rawText, i)
+            val end = findJsonEnd(sourceText, i)
             if (end < 0) {
                 i++
                 continue
             }
-            val candidate = rawText.substring(i, end + 1)
+            val candidate = sourceText.substring(i, end + 1)
             val parsed = parseJsonPayload(candidate)
             if (parsed.isNotEmpty()) {
                 calls.addAll(parsed)
@@ -62,14 +62,14 @@ object ToolCallParser {
             var cursor = 0
             for (range in removedRanges.sortedBy { it.first }) {
                 if (range.first < cursor) continue
-                append(rawText.substring(cursor, range.first))
+                append(sourceText.substring(cursor, range.first))
                 cursor = range.last + 1
             }
-            if (cursor < rawText.length) append(rawText.substring(cursor))
+            if (cursor < sourceText.length) append(sourceText.substring(cursor))
         }.trim()
 
         val cleanReply = cleaned.replace(Regex("\\n{3,}"), "\n\n").trim()
-        val containedToolProtocol = rawText.contains("```tool_calls") ||
+        val containedToolProtocol = sourceText.contains("```tool_calls") ||
             rawText.contains("```tool_call") ||
             rawText.contains("```tools") ||
             rawText.contains("```tool")
@@ -80,7 +80,8 @@ object ToolCallParser {
             } else {
                 cleanReply
             },
-            toolCalls = deduped
+            toolCalls = deduped,
+            directive = directive
         )
     }
 

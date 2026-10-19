@@ -21,9 +21,12 @@ data class SingleToolCall(
     val toolParams: Map<String, String> = emptyMap()
 )
 
+enum class TurnDirective { CONTINUE, FINAL }
+
 data class LlmCallResult(
     val textReply: String,
-    val toolCalls: List<SingleToolCall> = emptyList()
+    val toolCalls: List<SingleToolCall> = emptyList(),
+    val directive: TurnDirective = TurnDirective.FINAL
 ) {
     // Backwards compatibility helper
     val toolCallName: String?

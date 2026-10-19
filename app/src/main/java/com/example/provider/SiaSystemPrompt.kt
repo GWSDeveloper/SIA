@@ -10,7 +10,7 @@ import java.util.TimeZone
  * Tool definitions themselves come from ToolRegistry and are passed separately.
  */
 object SiaSystemPrompt {
-    fun build(assistantName: String): String = buildString {
+    fun build(assistantName: String, userName: String = ""): String = buildString {
         val zone = TimeZone.getDefault()
         val currentDateTime = SimpleDateFormat("EEEE, dd MMMM yyyy HH:mm z", Locale.ENGLISH).format(Date())
         append("CURRENT DEVICE DATE/TIME: $currentDateTime (timezone: ${zone.id}). This value is authoritative for the current turn. Never use a date from conversation history as today. For live schedules, scores, or other changing facts, search the web and evaluate results relative to this date/time.\n")

@@ -113,7 +113,7 @@ fun SettingsScreen(
     val prefs = viewModel.preferences
     val coroutineScope = rememberCoroutineScope()
 
-    var assistantName by remember { mutableStateOf(prefs.getAssistantName()) }
+    var userName by remember { mutableStateOf(prefs.getUserName()) }\n    var assistantName by remember { mutableStateOf(prefs.getAssistantName()) }
     var selectedProvider by remember { mutableStateOf(prefs.getSelectedProvider()) }
     var modelName by remember { mutableStateOf(prefs.getModelName()) }
     var apiKeyText by remember { mutableStateOf(prefs.getApiKey(selectedProvider)) }

@@ -216,7 +216,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
             val permanentMemory = memoryManager.getPermanentMemoryText()
             val rollingSummary = memoryManager.getRollingSummaryText()
 
-            val systemPrompt = com.example.provider.SiaSystemPrompt.build(assistantName)
+            val systemPrompt = com.example.provider.SiaSystemPrompt.build(assistantName, preferences.getUserName())
 
             // The current user message was inserted into Room above. Exclude that same
             // trailing entry from history so providers receive it only as currentUserMessage.
@@ -246,7 +246,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
 
             if (responseResult.isSuccess) {
                 val llmOutput: LlmCallResult = responseResult.getOrThrow()
-                if (llmOutput.toolCalls.isNotEmpty()) {
+                if (llmOutput.toolCalls.isNotEmpty() || llmOutput.directive == com.example.provider.TurnDirective.CONTINUE) {
                     executeMultiActions(llmOutput.toolCalls, isFromVoice, userInput, explicitSpokenText = llmOutput.textReply, planningContext = promptContext)
                 } else {
                     // Normal informational conversation without tool calls
