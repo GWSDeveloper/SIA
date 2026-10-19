@@ -23,6 +23,9 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -30,6 +33,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -95,6 +102,11 @@ fun MainAppScaffold(
     onStartVoiceRequest: () -> Unit
 ) {
     val currentTab by viewModel.currentTab.collectAsState()
+    var nameDraft by remember { mutableStateOf(viewModel.preferences.getUserName()) }
+    var showNameSetup by remember { mutableStateOf(nameDraft.isBlank()) }
+    if (showNameSetup) {
+        AlertDialog(onDismissRequest = {}, title = { Text("Hey! Main SIA hoon 💗") }, text = { OutlinedTextField(value = nameDraft, onValueChange = { nameDraft = it }, label = { Text("Tumhara naam kya hai?") }, singleLine = true) }, confirmButton = { Button(onClick = { if (nameDraft.isNotBlank()) { viewModel.preferences.setUserName(nameDraft); showNameSetup = false } }, enabled = nameDraft.isNotBlank()) { Text("Chalo, start karein") } })
+    }
 
     // Request runtime permissions on launch
     val permissionLauncher = rememberLauncherForActivityResult(
