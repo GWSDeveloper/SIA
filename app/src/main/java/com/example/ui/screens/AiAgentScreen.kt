@@ -176,7 +176,7 @@ fun AiAgentScreen(
                     onOrbClick = {
                         when (visualState) {
                             AssistantVisualState.PAUSED -> viewModel.resumeVoiceInteraction()
-                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.stopVoiceInteraction()
+                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING -> viewModel.stopVoiceInteraction()
                             else -> viewModel.startVoiceInteraction()
                         }
                     },
@@ -343,26 +343,19 @@ fun AnimationModeContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 AnimatedOrb(
                     state = visualState,
-                    size = 230.dp,
+                    size = 270.dp,
                     audioLevel = audioLevel,
                     onClick = onOrbClick
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(22.dp))
 
                 Text(
                     text = assistantName,
                     color = SiaTextPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-
-                Text(
-                    text = "By FAST",
-                    color = SiaCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 3.sp
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -420,7 +413,7 @@ fun AnimationModeContent(
                 .padding(bottom = 12.dp)
         ) {
             val chips = listOf(
-                "📱 Install on Phone" to "install on phone",
+                "Install on Phone" to "install on phone",
                 "YouTube + Torch" to "Open YouTube and turn on the torch",
                 "Torch + Volume 50%" to "Torch on karo aur volume 50 kar do",
                 "Flashlight On" to "torch on",
@@ -442,30 +435,7 @@ fun AnimationModeContent(
             }
         }
 
-        // Mic Action Button with distinct state colors
-        val micBgColor = when (visualState) {
-            AssistantVisualState.LISTENING -> SiaGreen
-            AssistantVisualState.PREPARING -> SiaAmber
-            else -> SiaCyan
-        }
-
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(micBgColor)
-                .clickable { onOrbClick() }
-                .testTag("orb_voice_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (visualState == AssistantVisualState.LISTENING) Icons.Default.MicOff else Icons.Default.Mic,
-                contentDescription = "Voice Input",
-                tint = SiaBgDark,
-                modifier = Modifier.size(36.dp)
-            )
-        }
-
+        // The orb is the sole voice-entry control; keep the bottom area uncluttered.
         Spacer(modifier = Modifier.height(8.dp))
         val hintText = when (visualState) {
             AssistantVisualState.PREPARING -> "Preparing audio..."
@@ -473,7 +443,7 @@ fun AnimationModeContent(
             AssistantVisualState.THINKING -> "Thinking..."
             AssistantVisualState.EXECUTING -> "Executing actions..."
             AssistantVisualState.SPEAKING -> "Speaking response..."
-            else -> "Tap to speak in Hindi, Hinglish, or English"
+            else -> "Tap the orb to speak"
         }
         Text(
             text = hintText,
