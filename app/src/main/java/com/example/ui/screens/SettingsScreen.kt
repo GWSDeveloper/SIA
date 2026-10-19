@@ -116,7 +116,7 @@ fun SettingsScreen(
     var userName by remember { mutableStateOf(prefs.getUserName()) }
     var assistantName by remember { mutableStateOf(prefs.getAssistantName()) }
     var selectedProvider by remember { mutableStateOf(prefs.getSelectedProvider()) }
-    var modelName by remember { mutableStateOf(prefs.getModelName(selectedProvider))
+    var modelName by remember { mutableStateOf(prefs.getModelName(selectedProvider)) }
     var apiKeyText by remember { mutableStateOf(prefs.getApiKey(selectedProvider)) }
     var isApiKeyVisible by remember { mutableStateOf(false) }
 
@@ -152,6 +152,9 @@ fun SettingsScreen(
     // Memory management state
     val permanentMemories by viewModel.memoryManager.permanentMemoriesFlow.collectAsState(initial = emptyList())
     var showAddMemoryDialog by remember { mutableStateOf(false) }
+    var editingMemory by remember { mutableStateOf<com.example.data.MemoryEntity?>(null) }
+    var editedMemoryContent by remember { mutableStateOf("") }
+    var showMemoryEditConfirmation by remember { mutableStateOf(false) }
 
     // Scheduled Tasks state
     val db = remember { SiaDatabase.getDatabase(context) }
@@ -873,10 +876,18 @@ fun SettingsScreen(
                             Text(mem.key, color = SiaCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             Text(mem.content, color = SiaTextPrimary, fontSize = 12.sp)
                         }
-                        IconButton(onClick = {
-                            coroutineScope.launch { viewModel.memoryManager.deletePermanentMemory(mem) }
-                        }) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Memory", tint = SiaTextMuted, modifier = Modifier.size(18.dp))
+                        Row {
+                            IconButton(onClick = {
+                                editingMemory = mem
+                                editedMemoryContent = mem.content
+                            }) {
+                                Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit Memory", tint = SiaCyan, modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(onClick = {
+                                coroutineScope.launch { viewModel.memoryManager.deletePermanentMemory(mem) }
+                            }) {
+                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Memory", tint = SiaTextMuted, modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
                 }
@@ -1087,6 +1098,55 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+
+    // Editing permanent memory requires an explicit review/confirmation step.
+    editingMemory?.let { memory ->
+        AlertDialog(
+            onDismissRequest = { editingMemory = null; showMemoryEditConfirmation = false },
+            title = { Text("Edit Permanent Memory", color = SiaTextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(memory.key, color = SiaCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editedMemoryContent,
+                        onValueChange = { editedMemoryContent = it },
+                        label = { Text("Memory profile text", color = SiaTextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SiaCyan,
+                            unfocusedBorderColor = SiaBorder,
+                            focusedTextColor = SiaTextPrimary,
+                            unfocusedTextColor = SiaTextPrimary
+                        )
+                    )
+                    if (showMemoryEditConfirmation) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Save these changes to SIA's permanent memory?", color = SiaTextPrimary, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                if (!showMemoryEditConfirmation) {
+                    Button(onClick = { showMemoryEditConfirmation = true }) { Text("Review changes") }
+                } else {
+                    Button(onClick = {
+                        coroutineScope.launch {
+                            viewModel.memoryManager.updatePermanentMemory(memory.id, memory.key, editedMemoryContent)
+                        }
+                        editingMemory = null
+                        showMemoryEditConfirmation = false
+                    }) { Text("Confirm & Save") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    if (showMemoryEditConfirmation) showMemoryEditConfirmation = false else editingMemory = null
+                }) { Text(if (showMemoryEditConfirmation) "Back" else "Cancel", color = SiaTextSecondary) }
+            },
+            containerColor = SiaCardBg
+        )
     }
 
     // Add Memory Dialog
