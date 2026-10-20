@@ -186,18 +186,6 @@ class SiaFloatingService : Service() {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
 
-            val density = resources.displayMetrics.density
-
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                layoutType,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.CENTER
-            }
-
             // Compact floating glass dock; it never dims or blocks the whole screen.
             val density = resources.displayMetrics.density
             val orbSize = (58 * density).toInt()
