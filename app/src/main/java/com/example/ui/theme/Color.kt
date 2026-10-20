@@ -2,22 +2,20 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// SIA identity: deep evergreen, warm graphite, jade, and restrained amber/coral.
-val SiaBgDark = Color(0xFF0D1513)
-val SiaSurfaceDark = Color(0xFF14201C)
-val SiaSurfaceVariantDark = Color(0xFF1C2B25)
-val SiaCardBg = Color(0xFF17241F)
-val SiaBorder = Color(0xFF2D4037)
-
-val SiaCyan = Color(0xFF9FD4B7)       // jade primary
-val SiaCyanGlow = Color(0x449FD4B7)
-val SiaViolet = Color(0xFFC5B89B)     // warm stone
-val SiaVioletGlow = Color(0x44C5B89B)
-val SiaPink = Color(0xFFE0A18A)       // muted coral
-val SiaAmber = Color(0xFFE5BC7A)      // warm amber
-val SiaGreen = Color(0xFF83D6A6)
-val SiaRed = Color(0xFFE18A7B)
-
-val SiaTextPrimary = Color(0xFFF2F3E9)
-val SiaTextSecondary = Color(0xFFB5C2B8)
-val SiaTextMuted = Color(0xFF82968A)
+// SIA: layered ink-blue surfaces, sea-glass teal, warm apricot and ivory.
+val SiaBgDark = Color(0xFF121B2A)
+val SiaSurfaceDark = Color(0xFF1B293B)
+val SiaSurfaceVariantDark = Color(0xFF26384C)
+val SiaCardBg = Color(0xFF202F42)
+val SiaBorder = Color(0xFF354A60)
+val SiaCyan = Color(0xFF8DE0D0)
+val SiaCyanGlow = Color(0x448DE0D0)
+val SiaViolet = Color(0xFFC2B5E8)
+val SiaVioletGlow = Color(0x44C2B5E8)
+val SiaPink = Color(0xFFE6A89A)
+val SiaAmber = Color(0xFFF0C58B)
+val SiaGreen = Color(0xFF8BD8AE)
+val SiaRed = Color(0xFFE58F91)
+val SiaTextPrimary = Color(0xFFF5F1E8)
+val SiaTextSecondary = Color(0xFFBCC9D6)
+val SiaTextMuted = Color(0xFF91A4B8)
