@@ -72,17 +72,25 @@ class ContactAgent(private val context: Context) {
     }
 
     private fun startCall(displayName: String, number: String): ToolExecutionResult = try {
-        // Open the dialer with the resolved number and require the user to press Call.
-        // ACTION_CALL returning from startActivity is not proof that a call was actually
-        // initiated/connected, and must never be reported as "Call started".
-        context.startActivity(
-            Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-        ToolExecutionResult(
-            ToolResultStatus.USER_CONFIRMATION_REQUIRED,
-            "CALL_CONFIRMATION_REQUIRED: Opened the dialer for $displayName. The call has NOT been placed; review the number and tap Call."
-        )
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            context.startActivity(
+                Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            ToolExecutionResult(
+                ToolResultStatus.SUCCESS,
+                "Android accepted a direct call request for $displayName ($number). Connection status is not available to SIA."
+            )
+        } else {
+            context.startActivity(
+                Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            ToolExecutionResult(
+                ToolResultStatus.USER_CONFIRMATION_REQUIRED,
+                "CALL_CONFIRMATION_REQUIRED: Opened the dialer for $displayName because CALL_PHONE permission is not granted. Review the number and tap Call."
+            )
+        }
     } catch (_: Exception) {
         ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Android could not open the dialer for $displayName.")
     }

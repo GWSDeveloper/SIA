@@ -54,6 +54,8 @@ class SiaFloatingService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var windowManager: WindowManager? = null
     private var overlayRootView: View? = null
+    private var immersiveOverlayView: View? = null
+    private var isImmersiveOverlayAttached = false
     private var isOverlayAttached = false
 
     private var speechManager: SiaSpeechManager? = null
@@ -97,7 +99,7 @@ class SiaFloatingService : Service() {
         startForeground(NOTIFICATION_ID, buildForegroundNotification())
 
         if (action == ACTION_START_SIA_OVERLAY) {
-            showFloatingAssistantOverlay()
+            showImmersiveVoiceOverlay()
         }
 
         return START_STICKY
@@ -157,6 +159,108 @@ class SiaFloatingService : Service() {
                 startOverlayPendingIntent
             )
             .build()
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showImmersiveVoiceOverlay() {
+        if (!SiaPermissionManager.hasOverlayPermission(this)) {
+            val launchIntent = Intent(this, MainActivity::class.java).apply {
+                action = "com.example.ACTION_START_SIA_VOICE"
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(launchIntent)
+            return
+        }
+        if (isImmersiveOverlayAttached) {
+            if (speechManager?.isSessionActive != true) speechManager?.startSession()
+            return
+        }
+        try {
+            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val density = resources.displayMetrics.density
+            val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            if (isOverlayAttached && overlayRootView != null) {
+                try { windowManager?.removeView(overlayRootView) } catch (_: Exception) {}
+                overlayRootView = null
+                isOverlayAttached = false
+            }
+            val root = FrameLayout(this).apply {
+                background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(
+                    Color.argb(18, 5, 10, 22), Color.argb(92, 5, 10, 22),
+                    Color.argb(205, 5, 10, 22), Color.argb(242, 5, 10, 22)
+                ))
+                isClickable = true
+                contentDescription = "SIA immersive voice mode. Tap anywhere to switch to the floating orb."
+            }
+            val content = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding((28 * density).toInt(), (30 * density).toInt(), (28 * density).toInt(), (34 * density).toInt())
+            }
+            val orb = FloatingEnergyOrbView(this).apply {
+                layoutParams = LinearLayout.LayoutParams((164 * density).toInt(), (164 * density).toInt()).apply {
+                    bottomMargin = (20 * density).toInt()
+                }
+                contentDescription = "SIA animated voice orb"
+            }
+            orbImageView = orb
+            content.addView(orb)
+            val title = TextView(this).apply {
+                text = SiaPreferences.getInstance(this@SiaFloatingService).getAssistantName()
+                setTextColor(Color.WHITE)
+                textSize = 23f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            content.addView(title)
+            val status = TextView(this).apply {
+                text = "Listening · speak naturally"
+                setTextColor(Color.parseColor("#B8D8DE"))
+                textSize = 15f
+                gravity = Gravity.CENTER
+                maxLines = 3
+                setPadding(0, (10 * density).toInt(), 0, (12 * density).toInt())
+            }
+            statusTextView = status
+            content.addView(status)
+            val hint = TextView(this).apply {
+                text = "Tap anywhere to switch to floating mode"
+                setTextColor(Color.parseColor("#8BA7B2"))
+                textSize = 12f
+                gravity = Gravity.CENTER
+            }
+            content.addView(hint)
+            val contentParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply { topMargin = (resources.displayMetrics.heightPixels * 0.16f).toInt() }
+            root.addView(content, contentParams)
+            root.setOnClickListener {
+                try { windowManager?.removeView(root) } catch (_: Exception) {}
+                immersiveOverlayView = null
+                isImmersiveOverlayAttached = false
+                showFloatingAssistantOverlay()
+            }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply { gravity = Gravity.TOP or Gravity.START }
+            windowManager?.addView(root, params)
+            immersiveOverlayView = root
+            isImmersiveOverlayAttached = true
+            if (speechManager?.isSessionActive != true) {
+                Handler(Looper.getMainLooper()).postDelayed({ speechManager?.startSession() }, 250)
+            }
+        } catch (e: Exception) {
+            statusTextView?.text = "Voice overlay could not open: ${e.message ?: "unknown error"}"
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -308,9 +412,9 @@ class SiaFloatingService : Service() {
             isOverlayAttached = true
 
             // Automatically start voice session when overlay opens
-            Handler(Looper.getMainLooper()).postDelayed({
-                speechManager?.startSession()
-            }, 300)
+            if (speechManager?.isSessionActive != true) {
+                Handler(Looper.getMainLooper()).postDelayed({ speechManager?.startSession() }, 300)
+            }
 
         } catch (_: Exception) {}
     }
@@ -467,6 +571,11 @@ class SiaFloatingService : Service() {
 
     private fun removeFloatingOverlay() {
         speechManager?.stopSession()
+        if (isImmersiveOverlayAttached && immersiveOverlayView != null) {
+            try { windowManager?.removeView(immersiveOverlayView) } catch (_: Exception) {}
+            immersiveOverlayView = null
+            isImmersiveOverlayAttached = false
+        }
 
         if (isOverlayAttached && overlayRootView != null) {
             try {
