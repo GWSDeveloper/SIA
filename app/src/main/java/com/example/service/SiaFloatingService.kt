@@ -172,8 +172,11 @@ class SiaFloatingService : Service() {
         }
 
         if (isOverlayAttached) {
-            // Already showing, trigger voice listening
-            speechManager?.startListening()
+            // Do not reset/restart the recognizer when the notification is tapped again.
+            // Recreating Android's recognizer mid-playback can interrupt the active media session.
+            if (speechManager?.isSessionActive != true) {
+                speechManager?.startSession()
+            }
             return
         }
 
@@ -364,24 +367,12 @@ class SiaFloatingService : Service() {
                 originalUserText = command
             )
             val executionResults = outcome.executionResults
-            var finalText = outcome.finalOutput.textReply
-            if (outcome.roundLimitReached) {
-                finalText = if (command.any { it.code > 127 }) {
-                    "Kaafi steps execute ho gaye, lekin poora task verify nahi ho paaya."
-                } else {
-                    "I reached the safe action limit before I could verify the entire request."
-                }
-            }
-
-            val spoken = finalText.trim().takeIf { it.isNotBlank() && !it.contains("tool_calls") }
-                ?: when {
-                    executionResults.isEmpty() -> "I couldn't get a usable response. Please try again."
-                    executionResults.all { it.second.status == ToolResultStatus.SUCCESS } ->
-                        "The actions ran, but I couldn't get a final confirmation. Please check the phone."
-                    executionResults.any { it.second.status == ToolResultStatus.SUCCESS } ->
-                        "Some requested actions completed, but others could not be confirmed. Please check the phone and required permissions."
-                    else -> "I couldn't complete that action. Please check the required permission or setting."
-                }
+            val spoken = buildConciseSpokenResult(
+                executionResults.map { (action, result) -> action.toolName to result.status },
+                outcome.roundLimitReached,
+                outcome.followUpFailed,
+                outcome.finalOutput.textReply
+            )
 
             dao.insertMessage(
                 ConversationEntity(
@@ -401,6 +392,56 @@ class SiaFloatingService : Service() {
                 speechManager?.speak(spoken)
                 updateOrbVisualState(AssistantVisualState.SPEAKING)
             }
+        }
+    }
+
+    private fun buildConciseSpokenResult(
+        results: List<Pair<String, ToolResultStatus>>,
+        roundLimitReached: Boolean,
+        followUpFailed: Boolean,
+        fallbackText: String
+    ): String {
+        if (results.isEmpty()) {
+            return fallbackText.trim()
+                .takeIf { it.isNotBlank() && !it.contains("tool_calls", ignoreCase = true) }
+                ?.take(220)
+                ?: "Bhai, main is request ka result confirm nahi kar paayi."
+        }
+
+        val summaries = results.map { (tool, status) ->
+            when {
+                status == ToolResultStatus.USER_CONFIRMATION_REQUIRED ->
+                    if (tool == "send_sms") "Message ready hai; bhejne se pehle tujhe Send dabana hoga."
+                    else "Is action ke liye teri confirmation chahiye."
+                status == ToolResultStatus.PERMISSION_REQUIRED -> "Is action ke liye permission chahiye."
+                status == ToolResultStatus.SUCCESS -> when (tool) {
+                    "play_music", "play" -> "Gaana chala diya."
+                    "pause" -> "Music pause kar diya."
+                    "stop" -> "Music band kar diya."
+                    "next" -> "Agla track chala diya."
+                    "previous" -> "Pichhla track chala diya."
+                    "open_app" -> "App kholne ki request bhej di."
+                    "toggle_torch" -> "Flashlight ka command execute ho gaya."
+                    "set_volume" -> "Volume change kar diya."
+                    "set_brightness" -> "Brightness change kar di."
+                    "web_search", "web_agent" -> "Search khol diya."
+                    else -> "Action execute ho gaya."
+                }
+                else -> when (tool) {
+                    "play_music", "play" -> "Gaana nahi chala; matching track nahi mila ya playback fail hua."
+                    "pause" -> "Music pause nahi ho paaya."
+                    "stop" -> "Music band karna confirm nahi ho paaya."
+                    "open_app" -> "App nahi khul paaya."
+                    else -> "Ek action fail ho gaya."
+                }
+            }
+        }.distinct()
+
+        val text = summaries.joinToString(" ")
+        return when {
+            roundLimitReached -> "$text Baaki kaam poora verify nahi ho paaya."
+            followUpFailed -> "$text Baaki result verify nahi ho paaya."
+            else -> text
         }
     }
 
