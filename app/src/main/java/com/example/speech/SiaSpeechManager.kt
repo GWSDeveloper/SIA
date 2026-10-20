@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import java.io.File
@@ -471,11 +472,8 @@ class SiaSpeechManager(
         if (!isSessionActive || _visualState.value != AssistantVisualState.PAUSED) return
         if (!SiaPermissionManager.hasRecordAudioPermission(context)) return
         if (isCurrentlyListening) return
-        val gnaniKey = prefs.getGnaniApiKey()
-        if (gnaniKey.isNotBlank()) {
-            startGnaniListening(gnaniKey, wakeOnly = true)
-            return
-        }
+        // Keep wake-word detection on the local Android recognizer so a paused
+        // assistant does not make repeated billable STT requests while idle.
         if (!SpeechRecognizer.isRecognitionAvailable(context)) return
 
         val langPref = prefs.getLanguagePreference()
@@ -510,7 +508,11 @@ class SiaSpeechManager(
         _visualState.value = if (wakeOnly) AssistantVisualState.PAUSED else AssistantVisualState.LISTENING
         gnaniJob = managerScope.launch {
             try {
-                val transcript = gnaniSttClient.listenAndTranscribe(apiKey) { level -> _rmsAudioLevel.value = level }.trim()
+                val transcript = withContext(Dispatchers.IO) {
+                    gnaniSttClient.listenAndTranscribe(apiKey) { level ->
+                        mainHandler.post { _rmsAudioLevel.value = level }
+                    }
+                }.trim()
                 isCurrentlyListening = false
                 _rmsAudioLevel.value = 0f
                 if (transcript.isBlank()) {
@@ -554,13 +556,19 @@ class SiaSpeechManager(
                 isCurrentlyListening = false
                 _rmsAudioLevel.value = 0f
                 Log.w("SiaSpeechManager", "Gnani STT failed", e)
-                if (isSessionActive && !wakeOnly) {
-                    _visualState.value = AssistantVisualState.LISTENING
-                    onRecognitionError("Gnani STT failed: ${e.message ?: "check network and API key"}.")
-                    mainHandler.postDelayed({ if (isSessionActive) startListening() }, 900)
+                val message = e.message.orEmpty()
+                if (isSessionActive && !wakeOnly && message.startsWith("No speech detected")) {
+                    consecutiveSilenceCount++
+                    if (consecutiveSilenceCount < 3) {
+                        _visualState.value = AssistantVisualState.LISTENING
+                        mainHandler.postDelayed({ if (isSessionActive) startListening() }, 300)
+                    } else {
+                        pauseSession(notifyUser = false)
+                        onRecognitionError("Listening paused due to silence. Say '${prefs.getWakeWordPhrase()}' or tap to resume.")
+                    }
                 } else {
-                    _visualState.value = AssistantVisualState.PAUSED
-                    onRecognitionError("Gnani wake-word recognition failed. Check network and API key.")
+                    _visualState.value = if (wakeOnly) AssistantVisualState.PAUSED else AssistantVisualState.ERROR
+                    onRecognitionError("Gnani STT failed: ${message.ifBlank { "check network and API key" }}.")
                 }
             }
         }
