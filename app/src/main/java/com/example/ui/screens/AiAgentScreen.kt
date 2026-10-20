@@ -708,7 +708,7 @@ private fun MarkdownMessage(text: String) {
                 }
             }
         }
-        if (inCode && codeLines.isNotEmpty()) Text(codeLines.joinToString("\\n"), color = SiaTextPrimary, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp)
+        if (inCode && codeLines.isNotEmpty()) Text(codeLines.joinToString("\n"), color = SiaTextPrimary, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp)
     }
 }
 
