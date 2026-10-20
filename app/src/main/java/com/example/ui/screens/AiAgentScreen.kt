@@ -723,9 +723,9 @@ private fun InlineMarkdownText(text: String) {
             val token = match.value
             when {
                 token.startsWith("**") -> withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = SiaTextPrimary)) { append(token.removeSurrounding("**")) }
-                token.firstOrNull() == tick -> androidx.compose.ui.text.withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = SiaSurfaceVariantDark, color = SiaAmber)) { append(token.drop(1).dropLast(1)) }
-                token.startsWith("~~") -> androidx.compose.ui.text.withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = SiaTextSecondary)) { append(token.removeSurrounding("~~")) }
-                token.startsWith("*") -> androidx.compose.ui.text.withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(token.removeSurrounding("*")) }
+                token.firstOrNull() == tick -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = SiaSurfaceVariantDark, color = SiaAmber)) { append(token.drop(1).dropLast(1)) }
+                token.startsWith("~~") -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = SiaTextSecondary)) { append(token.removeSurrounding("~~")) }
+                token.startsWith("*") -> withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(token.removeSurrounding("*")) }
             }
             cursor = match.range.last + 1
         }
