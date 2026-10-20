@@ -292,7 +292,15 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
         )
         val outcome = ToolExecutionCoordinator(
             getApplication(),
-            actionExecutor
+            actionExecutor,
+            customToolHandler = { toolName, _ ->
+                if (toolName == "stop_listening") {
+                    speechManager.stopSession()
+                    ToolExecutionResult(ToolResultStatus.SUCCESS, "SIA voice listening stopped by user request.")
+                } else {
+                    ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "No handler is available for tool $toolName.")
+                }
+            }
         ).execute(
             initialOutput = initialOutput,
             planningContext = planningContext,
@@ -549,6 +557,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     "create_workspace_note" -> "note save kar diya"
                     "export_app_apk" -> "SIA APK export flow khol diya"
                     "list_all_commands" -> "available commands ki list nikaal di"
+                    "stop_listening" -> "voice listening band kar di"
                     else -> "requested action complete kar diya"
                 }
             } else {
@@ -577,6 +586,7 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
                     "create_workspace_note" -> "saved a workspace note"
                     "export_app_apk" -> "opened the SIA APK export flow"
                     "list_all_commands" -> "retrieved the available command list"
+                    "stop_listening" -> "stopped voice listening"
                     else -> "completed the requested action"
                 }
             }
@@ -606,9 +616,9 @@ class SiaViewModel(application: Application) : AndroidViewModel(application) {
     ): String {
         val succText = successList.joinToString(", ") { formatHumanReadableActionBadge(it.first, it.second) }
         return if (isHindiHinglish) {
-            "Kuch actions complete ho gaye ($succText), lekin ek action complete nahi ho paaya."
+            "Complete: $succText. Failed: " + failedList.joinToString("; ") { "${formatHumanReadableActionBadge(it.first, it.second)} — ${it.second.message.take(180)}" }
         } else {
-            "$succText completed, but one action could not be completed."
+            "Completed: $succText. Failed: " + failedList.joinToString("; ") { "${formatHumanReadableActionBadge(it.first, it.second)} — ${it.second.message.take(180)}" }
         }
     }
 

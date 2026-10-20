@@ -8,6 +8,7 @@ object ToolRegistry {
      * Only tools backed by an executor implementation are listed.
      */
     fun getAgentTools(): List<ToolDefinition> = listOf(
+        ToolDefinition("stop_listening", "Stop SIA voice listening when the user asks to stop, be quiet, take a rest, listen later, or otherwise pause listening. Infer intent; no exact stop phrase is required.", emptyList()),
         ToolDefinition("toggle_torch", "Turn the phone flashlight on, off, or toggle it.", listOf(
             ToolParameter("state", "string", "on, off, or toggle")
         ), requiredPermissions = listOf("CAMERA")),

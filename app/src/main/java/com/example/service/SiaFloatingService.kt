@@ -360,7 +360,15 @@ class SiaFloatingService : Service() {
 
             val outcome = com.example.tools.ToolExecutionCoordinator(
                 this@SiaFloatingService,
-                executor
+                executor,
+                customToolHandler = { toolName, _ ->
+                    if (toolName == "stop_listening") {
+                        kotlinx.coroutines.withContext(Dispatchers.Main) { speechManager?.stopSession() }
+                        com.example.tools.ToolExecutionResult(ToolResultStatus.SUCCESS, "SIA voice listening stopped by user request.")
+                    } else {
+                        com.example.tools.ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "No handler is available for tool $toolName.")
+                    }
+                }
             ).execute(
                 initialOutput = first.getOrThrow(),
                 planningContext = initialContext,
@@ -368,7 +376,7 @@ class SiaFloatingService : Service() {
             )
             val executionResults = outcome.executionResults
             val spoken = buildConciseSpokenResult(
-                executionResults.map { (action, result) -> action.toolName to result.status },
+                executionResults.map { (action, result) -> Triple(action.toolName, result.status, result.message) },
                 outcome.roundLimitReached,
                 outcome.followUpFailed,
                 outcome.finalOutput.textReply
@@ -396,7 +404,7 @@ class SiaFloatingService : Service() {
     }
 
     private fun buildConciseSpokenResult(
-        results: List<Pair<String, ToolResultStatus>>,
+        results: List<Triple<String, ToolResultStatus, String>>,
         roundLimitReached: Boolean,
         followUpFailed: Boolean,
         fallbackText: String
@@ -408,7 +416,7 @@ class SiaFloatingService : Service() {
                 ?: "Bhai, main is request ka result confirm nahi kar paayi."
         }
 
-        val summaries = results.map { (tool, status) ->
+        val summaries = results.map { (tool, status, detail) ->
             when {
                 status == ToolResultStatus.USER_CONFIRMATION_REQUIRED ->
                     if (tool == "send_sms") "Message ready hai; bhejne se pehle tujhe Send dabana hoga."
@@ -427,13 +435,7 @@ class SiaFloatingService : Service() {
                     "web_search", "web_agent" -> "Search khol diya."
                     else -> "Action execute ho gaya."
                 }
-                else -> when (tool) {
-                    "play_music", "play" -> "Gaana nahi chala; matching track nahi mila ya playback fail hua."
-                    "pause" -> "Music pause nahi ho paaya."
-                    "stop" -> "Music band karna confirm nahi ho paaya."
-                    "open_app" -> "App nahi khul paaya."
-                    else -> "Ek action fail ho gaya."
-                }
+                else -> "${tool.replace("_", " ")} fail hua: ${detail.take(180)}"
             }
         }.distinct()
 
