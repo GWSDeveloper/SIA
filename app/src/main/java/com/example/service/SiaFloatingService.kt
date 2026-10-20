@@ -9,6 +9,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -16,10 +21,10 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -53,7 +58,7 @@ class SiaFloatingService : Service() {
 
     private var speechManager: SiaSpeechManager? = null
     private var statusTextView: TextView? = null
-    private var orbImageView: ImageView? = null
+    private var orbImageView: FloatingEnergyOrbView? = null
     private var micButton: FrameLayout? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -193,127 +198,119 @@ class SiaFloatingService : Service() {
                 gravity = Gravity.CENTER
             }
 
-            // Full-screen dimmed container
-            val root = FrameLayout(this).apply {
-                setBackgroundColor(Color.parseColor("#E6050914")) // 90% dimmed obsidian
+            // Compact floating glass dock; it never dims or blocks the whole screen.
+            val density = resources.displayMetrics.density
+            val orbSize = (58 * density).toInt()
+            val root = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding((10 * density).toInt(), (8 * density).toInt(), (10 * density).toInt(), (8 * density).toInt())
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = 42 * density
+                    setColor(Color.parseColor("#F0182935"))
+                    setStroke((1 * density).toInt(), Color.parseColor("#6677DCCB"))
+                }
+                elevation = 12 * density
             }
 
-            // Top-right Close Button ('X')
-            val closeButton = FrameLayout(this).apply {
-                val btnSize = (48 * density).toInt()
-                val lp = FrameLayout.LayoutParams(btnSize, btnSize).apply {
-                    gravity = Gravity.TOP or Gravity.END
-                    topMargin = (40 * density).toInt()
-                    rightMargin = (24 * density).toInt()
-                }
-                layoutParams = lp
-
-                val circleBg = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#33FFFFFF"))
-                    setStroke((1 * density).toInt(), Color.parseColor("#6600E5FF"))
-                }
-                background = circleBg
-
-                val xText = TextView(this@SiaFloatingService).apply {
-                    text = "✕"
-                    setTextColor(Color.WHITE)
-                    textSize = 18f
-                    gravity = Gravity.CENTER
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                }
-                addView(xText)
-
-                setOnClickListener {
-                    removeFloatingOverlay()
-                }
-            }
-            root.addView(closeButton)
-
-            // Center Column with Animated Orb & Status
-            val centerColumn = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                val colLp = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.CENTER
-                }
-                layoutParams = colLp
-            }
-
-            // Glowing Orb
-            val orbSize = (180 * density).toInt()
-            val orb = ImageView(this).apply {
-                setImageResource(R.drawable.ic_launcher_foreground)
+            val orb = FloatingEnergyOrbView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(orbSize, orbSize)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#2200E5FF"), Color.TRANSPARENT)
-                }
-            }
-            orbImageView = orb
-            centerColumn.addView(orb)
-
-            // Assistant Title
-            val titleText = TextView(this).apply {
-                text = "SIA • By FAST"
-                setTextColor(Color.parseColor("#00E5FF"))
-                textSize = 14f
-                gravity = Gravity.CENTER
-                setPadding(0, (12 * density).toInt(), 0, (6 * density).toInt())
-            }
-            centerColumn.addView(titleText)
-
-            // Dynamic Status Text
-            val status = TextView(this).apply {
-                text = "Preparing microphone..."
-                setTextColor(Color.WHITE)
-                textSize = 16f
-                gravity = Gravity.CENTER
-                setPadding((16 * density).toInt(), 0, (16 * density).toInt(), (20 * density).toInt())
-            }
-            statusTextView = status
-            centerColumn.addView(status)
-
-            // Mic Toggle Button
-            val micSize = (64 * density).toInt()
-            val micContainer = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(micSize, micSize).apply {
-                    gravity = Gravity.CENTER_HORIZONTAL
-                }
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#00E5FF"))
-                }
-                val micIcon = TextView(this@SiaFloatingService).apply {
-                    text = "🎤"
-                    textSize = 24f
-                    gravity = Gravity.CENTER
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                }
-                addView(micIcon)
-
+                contentDescription = "SIA floating assistant. Tap to start or pause voice."
                 setOnClickListener {
-                    val state = speechManager?.visualState?.value
-                    when (state) {
+                    when (speechManager?.visualState?.value) {
                         AssistantVisualState.PAUSED -> speechManager?.resumeSession()
-                        AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> speechManager?.pauseSession(notifyUser = true)
+                        AssistantVisualState.LISTENING,
+                        AssistantVisualState.PREPARING,
+                        AssistantVisualState.SPEAKING -> speechManager?.pauseSession(notifyUser = true)
                         else -> speechManager?.startSession()
                     }
                 }
             }
-            micButton = micContainer
-            centerColumn.addView(micContainer)
+            orbImageView = orb
+            root.addView(orb)
 
-            root.addView(centerColumn)
+            val textColumn = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = (10 * density).toInt()
+                    marginEnd = (6 * density).toInt()
+                }
+            }
+            val titleText = TextView(this).apply {
+                text = "SIA"
+                setTextColor(Color.parseColor("#DDFBF2"))
+                textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            textColumn.addView(titleText)
+
+            val status = TextView(this).apply {
+                text = "Tap orb to speak"
+                setTextColor(Color.parseColor("#A9C5CB"))
+                textSize = 11f
+                maxLines = 2
+                setPadding(0, (2 * density).toInt(), 0, 0)
+            }
+            statusTextView = status
+            textColumn.addView(status)
+            root.addView(textColumn)
+
+            val closeButton = TextView(this).apply {
+                text = "×"
+                textSize = 24f
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor("#C8E1E4"))
+                contentDescription = "Close floating assistant"
+                layoutParams = LinearLayout.LayoutParams((34 * density).toInt(), (42 * density).toInt())
+                setOnClickListener { removeFloatingOverlay() }
+            }
+            root.addView(closeButton)
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.END
+                x = (12 * density).toInt()
+                y = (180 * density).toInt()
+            }
+
+            // Drag from the status/title area to reposition; tapping the orb still works.
+            var downRawX = 0f
+            var downRawY = 0f
+            var startX = 0
+            var startY = 0
+            var dragged = false
+            textColumn.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        startX = params.x
+                        startY = params.y
+                        dragged = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (event.rawX - downRawX).toInt()
+                        val dy = (event.rawY - downRawY).toInt()
+                        if (kotlin.math.abs(dx) > (5 * density).toInt() || kotlin.math.abs(dy) > (5 * density).toInt()) dragged = true
+                        if (dragged) {
+                            params.x = (startX - dx).coerceAtLeast(0)
+                            params.y = (startY + dy).coerceAtLeast(0)
+                            try { windowManager?.updateViewLayout(root, params) } catch (_: Exception) {}
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
+                    else -> false
+                }
+            }
 
             windowManager?.addView(root, params)
             overlayRootView = root
@@ -420,53 +417,17 @@ class SiaFloatingService : Service() {
     }
 
     private fun updateOrbVisualState(state: AssistantVisualState) {
-        val density = resources.displayMetrics.density
-        when (state) {
-            AssistantVisualState.PREPARING -> {
-                statusTextView?.text = "Preparing voice stream..."
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#44FFAB00"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.LISTENING -> {
-                statusTextView?.text = "Listening... Speak now"
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#4400E676"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> {
-                statusTextView?.text = "Executing action..."
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#447C4DFF"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.SPEAKING -> {
-                statusTextView?.text = "SIA Speaking..."
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#4400E5FF"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.PAUSED -> {
-                val prefs = SiaPreferences.getInstance(this)
-                val wake = prefs.getWakeWordPhrase()
-                statusTextView?.text = "Paused. Say '$wake' or tap to resume"
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#44FFB300"), Color.TRANSPARENT)
-                }
-            }
-            else -> {
-                statusTextView?.text = "Tap 🎤 to speak"
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#2200E5FF"), Color.TRANSPARENT)
-                }
-            }
+        statusTextView?.text = when (state) {
+            AssistantVisualState.PREPARING -> "Preparing voice…"
+            AssistantVisualState.LISTENING -> "Listening · speak now"
+            AssistantVisualState.THINKING -> "Thinking…"
+            AssistantVisualState.EXECUTING -> "Working on it…"
+            AssistantVisualState.SPEAKING -> "SIA is speaking"
+            AssistantVisualState.PAUSED -> "Paused · tap orb to resume"
+            AssistantVisualState.ERROR -> "Voice error · tap to retry"
+            AssistantVisualState.IDLE -> "Tap orb to speak"
         }
+        orbImageView?.setVisualState(state)
     }
 
     private fun removeFloatingOverlay() {
