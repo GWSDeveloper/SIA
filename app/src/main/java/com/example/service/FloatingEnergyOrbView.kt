@@ -27,75 +27,28 @@ class FloatingEnergyOrbView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val cx = width / 2f
-        val cy = height / 2f
-        val unit = minOf(width, height).toFloat()
-        val r = unit * 0.37f
-        val active = visualState == AssistantVisualState.LISTENING ||
-            visualState == AssistantVisualState.THINKING ||
-            visualState == AssistantVisualState.EXECUTING ||
-            visualState == AssistantVisualState.SPEAKING
-        val mint = when (visualState) {
-            AssistantVisualState.ERROR -> Color.rgb(255, 165, 150)
-            AssistantVisualState.PREPARING -> Color.rgb(255, 220, 176)
-            else -> Color.rgb(130, 244, 218)
-        }
-        val deep = Color.rgb(38, 148, 153)
-
-        paint.style = Paint.Style.FILL
-        paint.shader = RadialGradient(cx, cy, r * 1.7f, intArrayOf(Color.argb(40, 35, 220, 200), Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
-        canvas.drawCircle(cx, cy, r * 1.7f, paint)
-        paint.shader = null
-
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1.0f * density
-        paint.color = if (active) Color.argb(110, 143, 255, 232) else Color.argb(65, 143, 255, 232)
-        canvas.drawCircle(cx, cy, r * 1.20f, paint)
-
-        // Two fluid translucent contours, deliberately hollow rather than marble-like.
-        for (layer in 0..1) {
-            val path = Path()
-            val points = 80
-            for (i in 0..points) {
-                val a = (i.toFloat() / points) * (2f * PI).toFloat()
-                val radius = r * (0.82f +
-                    sin(a * 2f + phase + layer * 1.7f).toFloat() * 0.11f +
-                    sin(a * 3f - phase * 1.1f + layer).toFloat() * 0.045f +
-                    cos(a * 5f + phase * 0.5f).toFloat() * 0.02f)
-                val x = cx + cos(a).toFloat() * radius
-                val y = cy + sin(a).toFloat() * radius
-                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            }
-            path.close()
-            paint.strokeWidth = if (layer == 0) r * 0.13f else r * 0.075f
-            paint.color = Color.argb(if (layer == 0) 46 else 28, Color.red(mint), Color.green(mint), Color.blue(mint))
-            canvas.drawPath(path, paint)
-            paint.strokeWidth = (if (layer == 0) 1.4f else 0.8f) * density
-            paint.color = Color.argb(if (layer == 0) 190 else 105, Color.red(mint), Color.green(mint), Color.blue(mint))
-            canvas.drawPath(path, paint)
-        }
-
-        // Exactly two bright nodes moving on different inner paths.
-        paint.style = Paint.Style.FILL
-        val d1x = cx + cos(phase * if (visualState == AssistantVisualState.SPEAKING) 1.6f else 0.8f + 0.3f).toFloat() * r * 0.40f
-        val d1y = cy + sin(phase * 0.8f + 0.3f).toFloat() * r * 0.25f
-        val d2x = cx + cos(-phase * 0.57f + 2.4f).toFloat() * r * 0.28f
-        val d2y = cy + sin(-phase * 0.57f + 2.4f).toFloat() * r * 0.42f
-        for ((x, y, size) in listOf(Triple(d1x, d1y, unit * 0.045f), Triple(d2x, d2y, unit * 0.032f))) {
-            paint.shader = RadialGradient(x, y, size * 3.2f, intArrayOf(Color.argb(if (active) 150 else 95, Color.red(mint), Color.green(mint), Color.blue(mint)), Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
-            canvas.drawCircle(x, y, size * 3.2f, paint)
-            paint.shader = null
-            paint.color = Color.WHITE
-            canvas.drawCircle(x, y, size * 0.38f, paint)
-        }
-
-        // A restrained travelling highlight on the circular edge.
-        val angle = phase * 0.65f
-        val gx = cx + cos(angle).toFloat() * r * 1.20f
-        val gy = cy + sin(angle).toFloat() * r * 1.20f
-        paint.color = mint
-        canvas.drawCircle(gx, gy, unit * 0.018f, paint)
-        phase += if (active) 0.035f else 0.012f
-        postInvalidateDelayed(32L)
+        val cx = width / 2f; val cy = height / 2f; val unit = minOf(width, height).toFloat()
+        if (unit <= 0f) return
+        val r = unit * 0.31f
+        val active = visualState == AssistantVisualState.LISTENING || visualState == AssistantVisualState.THINKING || visualState == AssistantVisualState.EXECUTING || visualState == AssistantVisualState.SPEAKING
+        val speaking = visualState == AssistantVisualState.SPEAKING
+        val thinking = visualState == AssistantVisualState.THINKING || visualState == AssistantVisualState.EXECUTING
+        val core = when (visualState) { AssistantVisualState.ERROR -> Color.rgb(255,112,135); AssistantVisualState.PREPARING -> Color.rgb(255,199,130); AssistantVisualState.SPEAKING -> Color.rgb(153,133,255); else -> Color.rgb(92,239,224) }
+        val blue = Color.rgb(78,166,255); val violet = Color.rgb(133,103,255)
+        paint.style=Paint.Style.FILL
+        paint.shader=RadialGradient(cx,cy,r*2.05f,intArrayOf(Color.argb(if(active)88 else 48,Color.red(core),Color.green(core),Color.blue(core)),Color.argb(24,75,120,255),Color.TRANSPARENT),floatArrayOf(0f,0.52f,1f),Shader.TileMode.CLAMP)
+        canvas.drawCircle(cx,cy,r*2.05f,paint);paint.shader=null
+        paint.style=Paint.Style.STROKE
+        for(ring in 0..2){canvas.save();canvas.rotate(phase*(if(ring==1)-18f else 12f)+ring*58f,cx,cy);paint.strokeWidth=(if(ring==0)1.1f else 0.7f)*density;paint.color=Color.argb(if(active)90 else 48,Color.red(core),Color.green(core),Color.blue(core));canvas.drawOval(android.graphics.RectF(cx-r*(1.28f+ring*0.08f),cy-r*(0.35f+ring*0.045f),cx+r*(1.28f+ring*0.08f),cy+r*(0.35f+ring*0.045f)),paint);canvas.restore()}
+        val pulse=if(active)1f+sin(phase*(if(speaking)2.7f else 1.5f)).toFloat()*0.035f else 1f;val cr=r*pulse
+        paint.style=Paint.Style.FILL;paint.shader=RadialGradient(cx-cr*0.27f,cy-cr*0.34f,cr*1.65f,intArrayOf(Color.rgb(231,255,255),core,if(speaking||thinking)violet else blue,Color.rgb(7,19,43)),floatArrayOf(0f,0.23f,0.66f,1f),Shader.TileMode.CLAMP);canvas.drawCircle(cx,cy,cr,paint);paint.shader=null
+        paint.style=Paint.Style.STROKE;paint.strokeWidth=1.2f*density;paint.color=Color.argb(190,221,255,255);canvas.drawCircle(cx,cy,cr,paint)
+        paint.style=Paint.Style.FILL;paint.shader=RadialGradient(cx-cr*0.32f,cy-cr*0.43f,cr*0.66f,intArrayOf(Color.argb(155,255,255,255),Color.argb(34,255,255,255),Color.TRANSPARENT),floatArrayOf(0f,0.22f,1f),Shader.TileMode.CLAMP);canvas.drawCircle(cx,cy,cr*0.92f,paint);paint.shader=null
+        canvas.save();canvas.clipRect(cx-cr,cy-cr,cx+cr,cy+cr)
+        for(layer in 0..2){val path=Path();val steps=64;for(i in 0..steps){val x=-0.88f+1.76f*i/steps;val wave=sin(x*4.2f+phase*(if(thinking)1.8f else 1.15f)+layer*1.9f).toFloat();val wave2=cos(x*6.1f-phase*0.8f+layer).toFloat();val y=wave*(0.12f+layer*0.025f)+wave2*0.045f+(layer-1)*0.15f;val px=cx+x*cr;val py=cy+y*cr;if(i==0)path.moveTo(px,py)else path.lineTo(px,py)};paint.style=Paint.Style.STROKE;paint.strokeCap=Paint.Cap.ROUND;paint.strokeWidth=(if(speaking)2.6f else 1.8f)*density;paint.color=Color.argb(if(active)135-layer*25 else 70-layer*12,if(layer==1)255 else 150,255,250);canvas.drawPath(path,paint)}
+        canvas.restore();paint.style=Paint.Style.FILL
+        val speed=when{speaking->1.7f;thinking->1.35f;visualState==AssistantVisualState.LISTENING->1.1f;else->0.45f}
+        for(i in 0..3){val angle=phase*speed+i*(PI.toFloat()/2f);val orbit=cr*(1.17f+0.07f*sin(phase+i).toFloat());val x=cx+cos(angle).toFloat()*orbit;val y=cy+sin(angle*0.92f).toFloat()*orbit*0.58f;val size=unit*(if(i==0)0.027f else 0.016f);paint.shader=RadialGradient(x,y,size*3.3f,intArrayOf(Color.argb(190,Color.red(core),Color.green(core),Color.blue(core)),Color.TRANSPARENT),null,Shader.TileMode.CLAMP);canvas.drawCircle(x,y,size*3.3f,paint);paint.shader=null;paint.color=if(i==0)Color.WHITE else core;canvas.drawCircle(x,y,size,paint)}
+        phase+=when{speaking->0.052f;thinking->0.043f;visualState==AssistantVisualState.LISTENING->0.034f;active->0.027f;else->0.012f};postInvalidateDelayed(32L)
     }
 }
