@@ -226,12 +226,12 @@ fun WorkspaceScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp),
                 contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(items, key = { it.file.absolutePath }) { item ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .border(1.dp, SiaBorder, RoundedCornerShape(12.dp))

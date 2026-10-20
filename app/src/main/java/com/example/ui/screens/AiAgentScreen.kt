@@ -296,9 +296,9 @@ fun AnimationModeContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Top Row: State badge + Install APK button
         Row(
@@ -343,12 +343,12 @@ fun AnimationModeContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 AnimatedOrb(
                     state = visualState,
-                    size = 286.dp,
+                    size = 224.dp,
                     audioLevel = audioLevel,
                     onClick = onOrbClick
                 )
 
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = assistantName,
@@ -385,7 +385,7 @@ fun AnimationModeContent(
                         .padding(bottom = 8.dp)
                         .border(1.dp, SiaBorder.copy(alpha = 0.72f), RoundedCornerShape(20.dp))
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(13.dp)) {
                         Text(
                             text = "$assistantName:",
                             color = SiaCyan,

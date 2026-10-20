@@ -1226,7 +1226,7 @@ fun SettingsCard(
             .fillMaxWidth()
             .border(1.dp, SiaBorder.copy(alpha = 0.78f), RoundedCornerShape(20.dp))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
@@ -1238,7 +1238,7 @@ fun SettingsCard(
                     Icon(imageVector = icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                Text(text = title, color = SiaTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(text = title, color = SiaTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(modifier = Modifier.height(12.dp))
             content()
