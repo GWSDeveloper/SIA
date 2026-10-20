@@ -76,6 +76,7 @@ class ToolExecutionCoordinator(
                         status = ToolResultStatus.PERMANENT_ERROR,
                         message = validationError
                     )
+                    call.toolName == "call_again" -> ToolExecutionResult(ToolResultStatus.SUCCESS, "AI follow-up requested: ${call.toolParams["task"]}")
                     call.toolName == "stop_listening" && customToolHandler != null -> customToolHandler.invoke(call.toolName, call.toolParams)
                     else -> executor.executeTool(call.toolName, call.toolParams)
                 }
