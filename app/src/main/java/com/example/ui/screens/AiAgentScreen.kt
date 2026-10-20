@@ -353,9 +353,9 @@ fun AnimationModeContent(
                 Text(
                     text = assistantName,
                     color = SiaTextPrimary,
-                    fontSize = 28.sp,
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.5.sp
+                    letterSpacing = 0.3.sp
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -379,11 +379,11 @@ fun AnimationModeContent(
             if (cleanReply.isNotBlank()) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp)
-                        .border(1.dp, SiaBorder.copy(alpha = 0.72f), RoundedCornerShape(20.dp))
+                        .padding(bottom = 4.dp)
+                        .border(1.dp, SiaBorder.copy(alpha = 0.52f), RoundedCornerShape(16.dp))
                 ) {
                     Column(modifier = Modifier.padding(13.dp)) {
                         Text(
@@ -404,7 +404,15 @@ fun AnimationModeContent(
             }
         }
 
-        // Quick action chips (Single & Multi-action examples)
+        // Suggested actions are grouped as a deliberate section rather than loose prototype chips.
+        Text(
+            text = "QUICK ACTIONS",
+            color = SiaTextMuted,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.6.sp,
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 0.dp)
+        )
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 2.dp),

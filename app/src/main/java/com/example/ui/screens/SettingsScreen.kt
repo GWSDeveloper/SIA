@@ -168,9 +168,9 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(SiaBgDark)
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Top Header
         item {
@@ -178,13 +178,14 @@ fun SettingsScreen(
                 Text(
                     text = "Settings & Preferences",
                     color = SiaTextPrimary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = "Configure high-quality Hindi/Hinglish voice, wake word, providers, and actions.",
                     color = SiaTextSecondary,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
             }
         }
@@ -1221,17 +1222,17 @@ fun SettingsCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, SiaBorder.copy(alpha = 0.78f), RoundedCornerShape(20.dp))
+            .border(1.dp, SiaBorder.copy(alpha = 0.62f), RoundedCornerShape(16.dp))
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(accentColor.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1240,7 +1241,7 @@ fun SettingsCard(
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(text = title, color = SiaTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(9.dp))
             content()
         }
     }
