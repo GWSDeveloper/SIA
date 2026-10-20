@@ -58,7 +58,7 @@ class ToolExecutionCoordinator(
                         (attemptsBySignature[key] ?: 1) < 3
                     else -> false
                 }
-            }
+            }.take(1)
             if (callsToRun.isEmpty() && finalOutput.directive != TurnDirective.CONTINUE) break
 
             for (call in callsToRun) {
@@ -79,6 +79,8 @@ class ToolExecutionCoordinator(
                 }
                 executionResults.add(call to result)
             }
+            // Remove only the single executed call; keep other independent calls queued.
+            callsToRun.forEach { pendingCalls = pendingCalls.filterNot { queued -> signature(queued) == signature(it) } }
 
             val outcomes = executionResults.joinToString("\n") { (call, result) ->
                 "Tool: ${call.toolName}; arguments: ${call.toolParams}; status: ${result.status}; result: ${result.message}"
@@ -105,7 +107,7 @@ class ToolExecutionCoordinator(
                 break
             }
             finalOutput = followUp.getOrThrow()
-            pendingCalls = finalOutput.toolCalls
+            pendingCalls = (pendingCalls + finalOutput.toolCalls).distinctBy(::signature)
         }
 
         val executableCallsRemain = pendingCalls.distinctBy(::signature).any { call ->
