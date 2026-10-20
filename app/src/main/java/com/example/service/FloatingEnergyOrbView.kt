@@ -68,10 +68,10 @@ class FloatingEnergyOrbView(context: Context) : View(context) {
             }
             path.close()
             paint.strokeWidth = if (layer == 0) r * 0.13f else r * 0.075f
-            paint.color = Color.argb(if (layer == 0) 46 else 28, mint.red(), mint.green(), mint.blue())
+            paint.color = Color.argb(if (layer == 0) 46 else 28, Color.red(mint), Color.green(mint), Color.blue(mint))
             canvas.drawPath(path, paint)
             paint.strokeWidth = (if (layer == 0) 1.4f else 0.8f) * density
-            paint.color = Color.argb(if (layer == 0) 190 else 105, mint.red(), mint.green(), mint.blue())
+            paint.color = Color.argb(if (layer == 0) 190 else 105, Color.red(mint), Color.green(mint), Color.blue(mint))
             canvas.drawPath(path, paint)
         }
 
@@ -82,7 +82,7 @@ class FloatingEnergyOrbView(context: Context) : View(context) {
         val d2x = cx + cos(-phase * 0.57f + 2.4f).toFloat() * r * 0.28f
         val d2y = cy + sin(-phase * 0.57f + 2.4f).toFloat() * r * 0.42f
         for ((x, y, size) in listOf(Triple(d1x, d1y, unit * 0.045f), Triple(d2x, d2y, unit * 0.032f))) {
-            paint.shader = RadialGradient(x, y, size * 3.2f, intArrayOf(Color.argb(if (active) 150 else 95, mint.red(), mint.green(), mint.blue()), Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
+            paint.shader = RadialGradient(x, y, size * 3.2f, intArrayOf(Color.argb(if (active) 150 else 95, Color.red(mint), Color.green(mint), Color.blue(mint)), Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
             canvas.drawCircle(x, y, size * 3.2f, paint)
             paint.shader = null
             paint.color = Color.WHITE
