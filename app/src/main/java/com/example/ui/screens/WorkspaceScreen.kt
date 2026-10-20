@@ -226,15 +226,15 @@ fun WorkspaceScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp),
                 contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 items(items, key = { it.file.absolutePath }) { item ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(18.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, SiaBorder.copy(alpha = 0.65f), RoundedCornerShape(14.dp))
+                            .border(1.dp, SiaBorder.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
                             .clickable {
                                 if (item.isDirectory) {
                                     currentDirectory = item.file

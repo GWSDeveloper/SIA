@@ -1222,18 +1222,18 @@ fun SettingsCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, SiaBorder.copy(alpha = 0.62f), RoundedCornerShape(16.dp))
+            .border(1.dp, SiaBorder.copy(alpha = 0.78f), RoundedCornerShape(22.dp))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(accentColor.copy(alpha = 0.2f)),
+                        .background(accentColor.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(imageVector = icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))

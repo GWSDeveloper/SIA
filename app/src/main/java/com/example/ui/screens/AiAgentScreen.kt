@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,9 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -53,6 +57,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -116,58 +121,14 @@ fun AiAgentScreen(
             .fillMaxSize()
             .background(SiaBgDark)
     ) {
-        // Mode Switcher: Animation vs Chat
-        TabRow(
-            selectedTabIndex = if (agentMode == AgentMode.ANIMATION) 0 else 1,
-            containerColor = SiaBgDark,
-            contentColor = SiaCyan,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[if (agentMode == AgentMode.ANIMATION) 0 else 1]),
-                    color = SiaCyan,
-                    height = 2.dp
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(22.dp)).background(SiaSurfaceDark)
+                .border(1.dp, SiaBorder.copy(alpha = 0.85f), RoundedCornerShape(22.dp)).padding(5.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Tab(
-                selected = agentMode == AgentMode.ANIMATION,
-                onClick = { viewModel.setAgentMode(AgentMode.ANIMATION) },
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Animation",
-                            fontWeight = if (agentMode == AgentMode.ANIMATION) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                },
-                modifier = Modifier.testTag("tab_animation_mode")
-            )
-            Tab(
-                selected = agentMode == AgentMode.CHAT,
-                onClick = { viewModel.setAgentMode(AgentMode.CHAT) },
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Chat,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Chat (${messages.size})",
-                            fontWeight = if (agentMode == AgentMode.CHAT) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                },
-                modifier = Modifier.testTag("tab_chat_mode")
-            )
+            ModeSegment("Assistant", { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp)) }, agentMode == AgentMode.ANIMATION, { viewModel.setAgentMode(AgentMode.ANIMATION) }, Modifier.weight(1f).testTag("tab_animation_mode"))
+            ModeSegment("Chat", { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp)) }, agentMode == AgentMode.CHAT, { viewModel.setAgentMode(AgentMode.CHAT) }, Modifier.weight(1f).testTag("tab_chat_mode"))
         }
 
         // Mode Content
@@ -410,42 +371,23 @@ fun AnimationModeContent(
             }
         }
 
-        // Suggested actions are grouped as a deliberate section rather than loose prototype chips.
-        Text(
-            text = "QUICK ACTIONS",
-            color = SiaTextMuted,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 1.6.sp,
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 0.dp)
-        )
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 2.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 4.dp)
-        ) {
-            val chips = listOf(
-                "Install on Phone" to "install on phone",
-                "YouTube + Torch" to "Open YouTube and turn on the torch",
-                "Torch + Volume 50%" to "Torch on karo aur volume 50 kar do",
-                "Flashlight On" to "torch on",
-                "Open YouTube" to "open youtube",
-                "Remind in 5m" to "remind me in 5 minutes to take a break"
+        Text("TRY A QUICK ACTION", color = SiaTextMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 2.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            val actions = listOf(
+                Triple("Install app", "install on phone", Icons.Default.PhoneAndroid),
+                Triple("Open YouTube", "open youtube", Icons.Default.PlayArrow),
+                Triple("Flashlight", "torch on", Icons.Default.FlashOn),
+                Triple("Take a break", "remind me in 5 minutes to take a break", Icons.Default.NotificationsActive)
             )
-            items(chips) { (label, command) ->
-                SuggestionChip(
-                    onClick = { onQuickCommand(command) },
-                    label = { Text(label, color = SiaTextPrimary, fontSize = 12.sp) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = SiaSurfaceVariantDark
-                    ),
-                    border = SuggestionChipDefaults.suggestionChipBorder(
-                        enabled = true,
-                        borderColor = SiaBorder
-                    )
-                )
+            items(actions) { (label, command, actionIcon) ->
+                Card(onClick = { onQuickCommand(command) }, colors = CardDefaults.cardColors(containerColor = SiaSurfaceDark), shape = RoundedCornerShape(18.dp), modifier = Modifier.width(142.dp).border(1.dp, SiaBorder.copy(alpha = 0.9f), RoundedCornerShape(18.dp))) {
+                    Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(11.dp)).background(SiaCyan.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                            Icon(actionIcon, contentDescription = null, tint = SiaCyan, modifier = Modifier.size(18.dp))
+                        }
+                        Text(label, color = SiaTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                }
             }
         }
 
@@ -725,7 +667,7 @@ fun cleanUserFacingText(raw: String): String {
 
 @Composable
 private fun MarkdownMessage(text: String) {
-    val lines = text.split("\\n")
+    val lines = text.lines()
     var inCode = false
     val codeLines = mutableListOf<String>()
     val fence = 96.toChar().toString().repeat(3)
@@ -735,7 +677,7 @@ private fun MarkdownMessage(text: String) {
             if (line.trimStart().startsWith(fence)) {
                 if (inCode) {
                     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF111D2B)), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Text(codeLines.joinToString("\\n"), color = Color(0xFFD7E8E4), fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(12.dp))
+                        Text(codeLines.joinToString("\n"), color = Color(0xFFD7E8E4), fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(12.dp))
                     }
                     codeLines.clear()
                     inCode = false
@@ -745,9 +687,9 @@ private fun MarkdownMessage(text: String) {
             } else if (line.isBlank()) {
                 Spacer(Modifier.height(2.dp))
             } else {
-                val heading = Regex("^#{1,3}\\\\s+(.+)$").find(line)
-                val bullet = Regex("^\\\\s*[-*+]\\\\s+(.+)$").find(line)
-                val numbered = Regex("^\\\\s*\\\\d+[.)]\\\\s+(.+)$").find(line)
+                val heading = Regex("""^#{1,3}\s+(.+)$""").find(line)
+                val bullet = Regex("""^\s*[-*+]\s+(.+)$""").find(line)
+                val numbered = Regex("""^\s*\d+[.)]\s+(.+)$""").find(line)
                 when {
                     heading != null -> Text(heading.groupValues[1], color = SiaTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, lineHeight = 22.sp)
                     bullet != null -> Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -773,7 +715,7 @@ private fun MarkdownMessage(text: String) {
 @Composable
 private fun InlineMarkdownText(text: String) {
     val tick = 96.toChar()
-    val pattern = Regex("(\\\\*\\\\*.+?\\\\*\\\\*|"+tick+"[^"+tick+"]+"+tick+"|\\\\*[^*]+\\\\*|~~.+?~~)")
+    val pattern = Regex("""(\*\*.+?\*\*|${tick}[^${tick}]+${tick}|\*[^*]+\*|~~.+?~~)""")
     val annotated = androidx.compose.ui.text.buildAnnotatedString {
         var cursor = 0
         pattern.findAll(text).forEach { match ->
@@ -790,4 +732,18 @@ private fun InlineMarkdownText(text: String) {
         append(text.substring(cursor))
     }
     Text(annotated, color = SiaTextPrimary, fontSize = 14.sp, lineHeight = 21.sp)
+}
+
+
+@Composable
+private fun ModeSegment(title: String, icon: @Composable () -> Unit, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.clip(RoundedCornerShape(17.dp)).background(if (selected) SiaCyan.copy(alpha = 0.16f) else Color.Transparent).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 11.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides if (selected) SiaCyan else SiaTextMuted) { icon() }
+        Spacer(Modifier.width(7.dp))
+        Text(title, color = if (selected) SiaCyan else SiaTextSecondary, fontSize = 13.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+    }
 }
