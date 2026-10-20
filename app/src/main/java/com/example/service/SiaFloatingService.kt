@@ -409,11 +409,15 @@ class SiaFloatingService : Service() {
         followUpFailed: Boolean,
         fallbackText: String
     ): String {
+        val modelAnswer = fallbackText.trim()
+            .takeIf { it.isNotBlank() && !it.contains("tool_calls", ignoreCase = true) &&
+                !it.equals("Action execute ho gaya.", ignoreCase = true) &&
+                !it.equals("Action executed.", ignoreCase = true) &&
+                !it.equals("Kaam ho gaya.", ignoreCase = true) }
+        if (modelAnswer != null && !roundLimitReached && !followUpFailed) return modelAnswer.take(420)
         if (results.isEmpty()) {
-            return fallbackText.trim()
-                .takeIf { it.isNotBlank() && !it.contains("tool_calls", ignoreCase = true) }
-                ?.take(220)
-                ?: "Bhai, main is request ka result confirm nahi kar paayi."
+            return modelAnswer?.take(420)
+                ?: "Bhai, main abhi iska result verify nahi kar paayi."
         }
 
         val summaries = results.map { (tool, status, detail) ->
@@ -433,7 +437,7 @@ class SiaFloatingService : Service() {
                     "set_volume" -> "Volume change kar diya."
                     "set_brightness" -> "Brightness change kar di."
                     "web_search", "web_agent" -> "Search khol diya."
-                    else -> "Action execute ho gaya."
+                    else -> "${tool.replace("_", " ")} ka result mila, lekin final outcome verify nahi hua: ${detail.take(140)}"
                 }
                 else -> "${tool.replace("_", " ")} fail hua: ${detail.take(180)}"
             }
