@@ -1221,12 +1221,12 @@ fun SettingsCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, SiaBorder, RoundedCornerShape(16.dp))
+            .border(1.dp, SiaBorder.copy(alpha = 0.78f), RoundedCornerShape(20.dp))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier

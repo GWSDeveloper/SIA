@@ -13,10 +13,10 @@ import androidx.core.view.WindowCompat
 private val SiaDarkColorScheme = darkColorScheme(
     primary = SiaCyan,
     onPrimary = SiaBgDark,
-    primaryContainer = SiaViolet,
+    primaryContainer = SiaSurfaceVariantDark,
     onPrimaryContainer = SiaTextPrimary,
-    secondary = SiaViolet,
-    onSecondary = SiaTextPrimary,
+    secondary = SiaAmber,
+    onSecondary = SiaBgDark,
     secondaryContainer = SiaSurfaceVariantDark,
     onSecondaryContainer = SiaTextPrimary,
     tertiary = SiaPink,
@@ -34,7 +34,7 @@ private val SiaDarkColorScheme = darkColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = true, // SIA defaults to futuristic dark theme
+    darkTheme: Boolean = true, // SIA uses a calm, warm dark theme
     content: @Composable () -> Unit
 ) {
     val colorScheme = SiaDarkColorScheme

@@ -25,14 +25,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.speech.AssistantVisualState
-import com.example.ui.theme.SiaAmber
-import com.example.ui.theme.SiaCyan
-import com.example.ui.theme.SiaGreen
-import com.example.ui.theme.SiaRed
-import com.example.ui.theme.SiaViolet
 import kotlin.math.cos
 import kotlin.math.sin
 
+/**
+ * A softly illuminated glass-like sphere. The sphere itself is built from layered
+ * radial/sweep gradients and a moving specular highlight; fine orbital strokes are
+ * intentionally subtle so it reads as a physical object, not a neon HUD.
+ */
 @Composable
 fun AnimatedOrb(
     state: AssistantVisualState,
@@ -41,218 +41,194 @@ fun AnimatedOrb(
     audioLevel: Float = 0f,
     onClick: () -> Unit = {}
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "orb_transition")
-
-    // Rotation angle
-    val rotationAngle by infiniteTransition.animateFloat(
+    val transition = rememberInfiniteTransition(label = "sia_glass_orb")
+    val rotation by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = when (state) {
-                    AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> 1200
-                    AssistantVisualState.LISTENING -> 2200
-                    AssistantVisualState.SPEAKING -> 2800
-                    AssistantVisualState.PREPARING -> 3500
-                    else -> 6000
+                    AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> 7200
+                    AssistantVisualState.LISTENING -> 4400
+                    AssistantVisualState.SPEAKING -> 5600
+                    else -> 18000
                 },
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart
         ),
-        label = "rotation"
+        label = "orb_rotation"
     )
-
-    // Base pulse scale
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.90f,
+    val breathe by transition.animateFloat(
+        initialValue = 0.985f,
         targetValue = when (state) {
-            AssistantVisualState.LISTENING -> 1.15f
-            AssistantVisualState.SPEAKING -> 1.10f
-            AssistantVisualState.THINKING -> 1.06f
-            AssistantVisualState.PREPARING -> 1.02f
-            AssistantVisualState.ERROR -> 0.94f
-            else -> 1.03f
+            AssistantVisualState.LISTENING -> 1.045f
+            AssistantVisualState.SPEAKING -> 1.035f
+            AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> 1.018f
+            AssistantVisualState.ERROR -> 0.985f
+            else -> 1.012f
         },
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = when (state) {
-                    AssistantVisualState.LISTENING -> 550
-                    AssistantVisualState.SPEAKING -> 750
-                    AssistantVisualState.THINKING -> 650
-                    AssistantVisualState.PREPARING -> 800
-                    else -> 1600
+                    AssistantVisualState.LISTENING -> 1250
+                    AssistantVisualState.SPEAKING -> 1500
+                    else -> 3400
                 },
                 easing = FastOutSlowInEasing
             ),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "pulse"
+        label = "orb_breathe"
     )
-
-    // Reactive audio expansion scale
-    val effectiveScale = pulseScale + (audioLevel * 0.15f)
-
-    // Ripple wave progress
-    val rippleProgress by infiniteTransition.animateFloat(
+    val ripple by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = if (state == AssistantVisualState.LISTENING) 1000 else 2200,
+                durationMillis = if (state == AssistantVisualState.LISTENING) 1800 else 3200,
                 easing = LinearEasing
             ),
             repeatMode = RepeatMode.Restart
         ),
-        label = "ripple"
+        label = "orb_ripple"
     )
 
-    // Palette per state
-    val (primaryColor, secondaryColor, coreColor) = when (state) {
-        AssistantVisualState.IDLE -> Triple(Color(0xFF8DEBFF), Color(0xFF2879B8), Color(0xFFB9F5FF))
-        AssistantVisualState.PREPARING -> Triple(Color(0xFFFFC66D), Color(0xFFB77934), Color(0xFFFFE2AC))
-        AssistantVisualState.LISTENING -> Triple(Color(0xFF91F3F0), Color(0xFF278DAA), Color(0xFFD2FFFF))
-        AssistantVisualState.THINKING -> Triple(Color(0xFF9BCBFF), Color(0xFF4669B4), Color(0xFFD9E9FF))
-        AssistantVisualState.EXECUTING -> Triple(Color(0xFF8DEBFF), Color(0xFF4D80D8), Color(0xFFB9F5FF))
-        AssistantVisualState.SPEAKING -> Triple(Color(0xFF9BEAFF), Color(0xFF3B8CC8), Color(0xFFD8FAFF))
-        AssistantVisualState.PAUSED -> Triple(Color(0xFFB8C5D6), Color(0xFF667A93), Color(0xFFE6EDF5))
-        AssistantVisualState.ERROR -> Triple(Color(0xFFFF8D9B), Color(0xFF9D4557), Color(0xFFFFD7DC))
+    val (light, mid, deep) = when (state) {
+        AssistantVisualState.PREPARING -> Triple(Color(0xFFF0D5A7), Color(0xFFC4A477), Color(0xFF665B4C))
+        AssistantVisualState.ERROR -> Triple(Color(0xFFF0B3A8), Color(0xFFC78076), Color(0xFF684A48))
+        AssistantVisualState.PAUSED -> Triple(Color(0xFFC5CCC4), Color(0xFF8F9B91), Color(0xFF424A44))
+        AssistantVisualState.LISTENING -> Triple(Color(0xFFC7E5D6), Color(0xFF83BDA6), Color(0xFF345C50))
+        AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> Triple(Color(0xFFC7DDD3), Color(0xFF8EB6A6), Color(0xFF3B5F55))
+        AssistantVisualState.SPEAKING -> Triple(Color(0xFFE4D6BB), Color(0xFF9BC5B0), Color(0xFF46695C))
+        AssistantVisualState.IDLE -> Triple(Color(0xFFE1E5D8), Color(0xFF9BC9B5), Color(0xFF3C6658))
     }
 
     Box(
-        modifier = modifier
-            .size(size)
-            .testTag("animated_orb_container")
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            ),
+        modifier = modifier.size(size).testTag("animated_orb_container").clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick
+        ),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(size)) {
-            val center = Offset(this.size.width / 2, this.size.height / 2)
-            val baseRadius = this.size.minDimension / 2.7f
+        Canvas(Modifier.size(size)) {
+            val c = Offset(this.size.width / 2f, this.size.height / 2f)
+            val radius = this.size.minDimension * 0.345f
+            val scale = breathe + (audioLevel.coerceIn(0f, 1f) * 0.035f)
+            val r = radius * scale
 
-            // Dynamic audio ripples during listening / speaking
+            // Atmospheric halo: broad and soft, never a hard neon ring.
+            drawCircle(
+                brush = Brush.radialGradient(
+                    0f to light.copy(alpha = if (state == AssistantVisualState.LISTENING) 0.22f else 0.14f),
+                    0.56f to mid.copy(alpha = 0.075f),
+                    1f to Color.Transparent,
+                    center = c,
+                    radius = r * 2.0f
+                ),
+                radius = r * 2.0f,
+                center = c
+            )
+
             if (state == AssistantVisualState.LISTENING || state == AssistantVisualState.SPEAKING) {
-                val rippleRadius1 = baseRadius + (baseRadius * (0.6f + audioLevel * 0.4f) * rippleProgress)
-                val rippleAlpha1 = (1f - rippleProgress) * 0.5f
+                val waveRadius = r * (1.16f + ripple * 0.56f)
                 drawCircle(
-                    color = primaryColor.copy(alpha = rippleAlpha1),
-                    radius = rippleRadius1,
-                    center = center,
-                    style = Stroke(width = 2.dp.toPx())
-                )
-
-                val rippleOffset = (rippleProgress + 0.5f) % 1f
-                val rippleRadius2 = baseRadius + (baseRadius * 0.7f * rippleOffset)
-                val rippleAlpha2 = (1f - rippleOffset) * 0.35f
-                drawCircle(
-                    color = secondaryColor.copy(alpha = rippleAlpha2),
-                    radius = rippleRadius2,
-                    center = center,
-                    style = Stroke(width = 1.5.dp.toPx())
+                    color = light.copy(alpha = (1f - ripple) * 0.24f),
+                    radius = waveRadius,
+                    center = c,
+                    style = Stroke(width = 1.2.dp.toPx())
                 )
             }
 
-            // Outer atmospheric aura glow
+            // Sphere body: dark rim + layered volume shading.
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(
-                        primaryColor.copy(alpha = 0.38f),
-                        secondaryColor.copy(alpha = 0.16f),
-                        Color.Transparent
-                    ),
-                    center = center,
-                    radius = baseRadius * 1.55f * effectiveScale
+                    0f to light.copy(alpha = 0.96f),
+                    0.24f to mid.copy(alpha = 0.94f),
+                    0.63f to mid.copy(alpha = 0.60f),
+                    0.86f to deep.copy(alpha = 0.82f),
+                    1f to Color(0xFF111713),
+                    center = Offset(c.x + r * 0.24f, c.y + r * 0.27f),
+                    radius = r * 1.42f
                 ),
-                radius = baseRadius * 1.55f * effectiveScale,
-                center = center
+                radius = r,
+                center = c
             )
 
-            // Primary Energy Ring with sweeping neon gradient
-            val ring1Radius = baseRadius * 1.15f * effectiveScale
+            // Translucent flowing ribbons across the sphere.
+            val angle = Math.toRadians(rotation.toDouble())
+            val ribbonCenter = Offset(
+                c.x + (cos(angle) * r * 0.20).toFloat(),
+                c.y + (sin(angle) * r * 0.17).toFloat()
+            )
             drawCircle(
                 brush = Brush.sweepGradient(
-                    colors = listOf(
-                        primaryColor.copy(alpha = 0.95f),
-                        secondaryColor.copy(alpha = 0.35f),
-                        Color.Transparent,
-                        primaryColor.copy(alpha = 0.95f)
-                    ),
-                    center = center
+                    0f to Color.Transparent,
+                    0.12f to light.copy(alpha = 0.12f),
+                    0.23f to Color.White.copy(alpha = 0.46f),
+                    0.31f to mid.copy(alpha = 0.08f),
+                    0.58f to deep.copy(alpha = 0.24f),
+                    0.78f to Color.Transparent,
+                    1f to Color.Transparent,
+                    center = ribbonCenter
                 ),
-                radius = ring1Radius,
-                center = center,
-                style = Stroke(width = 2.5.dp.toPx())
+                radius = r * 0.98f,
+                center = c,
+                style = Stroke(width = r * 0.22f)
             )
-
-            // Orbiting energy nodes
-            val rad1 = Math.toRadians(rotationAngle.toDouble())
-            val node1X = center.x + (ring1Radius * cos(rad1)).toFloat()
-            val node1Y = center.y + (ring1Radius * sin(rad1)).toFloat()
             drawCircle(
-                color = primaryColor,
-                radius = (4.dp.toPx() + audioLevel * 2.dp.toPx()),
-                center = Offset(node1X, node1Y)
+                brush = Brush.sweepGradient(
+                    0f to Color.Transparent,
+                    0.20f to mid.copy(alpha = 0.05f),
+                    0.34f to light.copy(alpha = 0.58f),
+                    0.42f to Color.White.copy(alpha = 0.16f),
+                    0.68f to deep.copy(alpha = 0.12f),
+                    1f to Color.Transparent,
+                    center = c
+                ),
+                radius = r * 0.72f,
+                center = c,
+                style = Stroke(width = r * 0.105f)
             )
 
-            val rad2 = Math.toRadians((rotationAngle + 180).toDouble())
-            val node2X = center.x + (ring1Radius * cos(rad2)).toFloat()
-            val node2Y = center.y + (ring1Radius * sin(rad2)).toFloat()
+            // Glass rim with a moving reflection.
             drawCircle(
-                color = secondaryColor,
-                radius = 3.dp.toPx(),
-                center = Offset(node2X, node2Y)
+                brush = Brush.sweepGradient(
+                    0f to Color.White.copy(alpha = 0.05f),
+                    0.12f to light.copy(alpha = 0.70f),
+                    0.22f to Color.White.copy(alpha = 0.12f),
+                    0.52f to deep.copy(alpha = 0.50f),
+                    0.76f to Color.Transparent,
+                    0.91f to light.copy(alpha = 0.42f),
+                    1f to Color.White.copy(alpha = 0.05f),
+                    center = c
+                ),
+                radius = r,
+                center = c,
+                style = Stroke(width = 2.2.dp.toPx())
             )
 
-            // Counter-rotating inner energy ring
-            val ring2Radius = baseRadius * 0.92f
-            val rad3 = Math.toRadians(-rotationAngle * 1.6)
-            drawCircle(
-                color = secondaryColor.copy(alpha = 0.45f),
-                radius = ring2Radius,
-                center = center,
-                style = Stroke(width = 1.5.dp.toPx())
+            // Specular reflection, intentionally soft and offset from center.
+            val highlight = Offset(
+                c.x - r * (0.31f + cos(angle).toFloat() * 0.045f),
+                c.y - r * (0.38f + sin(angle).toFloat() * 0.035f)
             )
-
-            val node3X = center.x + (ring2Radius * cos(rad3)).toFloat()
-            val node3Y = center.y + (ring2Radius * sin(rad3)).toFloat()
-            drawCircle(
-                color = Color.White,
-                radius = 2.5.dp.toPx(),
-                center = Offset(node3X, node3Y)
-            )
-
-            // Deep Dimensional Core
-            val coreRadius = baseRadius * 0.72f * effectiveScale
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFFEAFBFF).copy(alpha = 0.92f),
-                        coreColor.copy(alpha = 0.88f),
-                        primaryColor.copy(alpha = 0.70f),
-                        secondaryColor.copy(alpha = 0.35f)
-                    ),
-                    center = center.copy(
-                        x = center.x - (coreRadius * 0.22f),
-                        y = center.y - (coreRadius * 0.22f)
-                    ),
-                    radius = coreRadius
+                    0f to Color.White.copy(alpha = 0.70f),
+                    0.28f to light.copy(alpha = 0.28f),
+                    1f to Color.Transparent,
+                    center = highlight,
+                    radius = r * 0.62f
                 ),
-                radius = coreRadius,
-                center = center
+                radius = r * 0.62f,
+                center = highlight
             )
-
-            // Specular core light glint
             drawCircle(
-                color = Color.White.copy(alpha = 0.24f),
-                radius = coreRadius * 0.35f,
-                center = center.copy(
-                    x = center.x - (coreRadius * 0.25f),
-                    y = center.y - (coreRadius * 0.25f)
-                )
+                color = Color.White.copy(alpha = 0.78f),
+                radius = r * 0.025f,
+                center = Offset(highlight.x - r * 0.09f, highlight.y - r * 0.055f)
             )
         }
     }

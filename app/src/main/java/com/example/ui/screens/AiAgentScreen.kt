@@ -113,13 +113,13 @@ fun AiAgentScreen(
         // Mode Switcher: Animation vs Chat
         TabRow(
             selectedTabIndex = if (agentMode == AgentMode.ANIMATION) 0 else 1,
-            containerColor = SiaSurfaceDark,
+            containerColor = SiaBgDark,
             contentColor = SiaCyan,
             indicator = { tabPositions ->
                 TabRowDefaults.SecondaryIndicator(
                     modifier = Modifier.tabIndicatorOffset(tabPositions[if (agentMode == AgentMode.ANIMATION) 0 else 1]),
                     color = SiaCyan,
-                    height = 3.dp
+                    height = 2.dp
                 )
             },
             modifier = Modifier.fillMaxWidth()
@@ -296,9 +296,9 @@ fun AnimationModeContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Top Row: State badge + Install APK button
         Row(
@@ -343,7 +343,7 @@ fun AnimationModeContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 AnimatedOrb(
                     state = visualState,
-                    size = 270.dp,
+                    size = 286.dp,
                     audioLevel = audioLevel,
                     onClick = onOrbClick
                 )
@@ -355,7 +355,7 @@ fun AnimationModeContent(
                     color = SiaTextPrimary,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 3.sp
+                    letterSpacing = 1.5.sp
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -379,11 +379,11 @@ fun AnimationModeContent(
             if (cleanReply.isNotBlank()) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .border(1.dp, SiaBorder, RoundedCornerShape(16.dp))
+                        .padding(bottom = 8.dp)
+                        .border(1.dp, SiaBorder.copy(alpha = 0.72f), RoundedCornerShape(20.dp))
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
@@ -407,10 +407,10 @@ fun AnimationModeContent(
         // Quick action chips (Single & Multi-action examples)
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp)
+                .padding(bottom = 4.dp)
         ) {
             val chips = listOf(
                 "Install on Phone" to "install on phone",
