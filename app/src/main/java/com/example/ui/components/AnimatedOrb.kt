@@ -30,10 +30,7 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-/**
- * Organic animated light-form for SIA. The silhouette gently morphs while
- * luminous currents drift through it; no hard sci-fi rings or static marble look.
- */
+/** Hollow fluid-glass energy loop with two moving light nodes, drawn in Canvas. */
 @Composable
 fun AnimatedOrb(
     state: AssistantVisualState,
@@ -42,161 +39,162 @@ fun AnimatedOrb(
     audioLevel: Float = 0f,
     onClick: () -> Unit = {}
 ) {
-    val motion = rememberInfiniteTransition(label = "sia_living_light")
+    val motion = rememberInfiniteTransition(label = "sia_energy_loop")
     val drift by motion.animateFloat(
-        initialValue = 0f, targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(
-            durationMillis = when (state) {
-                AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> 5000
-                AssistantVisualState.LISTENING -> 2400
-                AssistantVisualState.SPEAKING -> 3000
-                else -> 9000
+        0f, (2f * PI).toFloat(),
+        infiniteRepeatable(tween(
+            when (state) {
+                AssistantVisualState.LISTENING -> 2300
+                AssistantVisualState.SPEAKING -> 1850
+                AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> 4200
+                else -> 8500
             }, easing = LinearEasing
-        )), label = "drifting_currents"
+        )), label = "energy_drift"
     )
-    val breathe by motion.animateFloat(
-        initialValue = 0.94f,
-        targetValue = when (state) {
-            AssistantVisualState.LISTENING -> 1.09f
-            AssistantVisualState.SPEAKING -> 1.075f
-            AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> 1.045f
-            AssistantVisualState.PREPARING -> 1.025f
-            AssistantVisualState.ERROR -> 0.97f
-            else -> 1.015f
-        },
-        animationSpec = infiniteRepeatable(tween(
-            durationMillis = when (state) {
-                AssistantVisualState.LISTENING -> 760
-                AssistantVisualState.SPEAKING -> 900
-                AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> 1400
-                else -> 2600
-            }, easing = FastOutSlowInEasing
-        ), repeatMode = RepeatMode.Reverse), label = "breathing"
+    val breath by motion.animateFloat(
+        0.97f,
+        if (state == AssistantVisualState.LISTENING) 1.035f
+        else if (state == AssistantVisualState.SPEAKING) 1.045f else 1.008f,
+        infiniteRepeatable(tween(
+            if (state == AssistantVisualState.SPEAKING) 700
+            else if (state == AssistantVisualState.LISTENING) 850 else 2800,
+            easing = FastOutSlowInEasing
+        ), repeatMode = RepeatMode.Reverse),
+        label = "breathing"
     )
-    val wave by motion.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(
-            durationMillis = if (state == AssistantVisualState.LISTENING) 1200 else 2500,
+    val pulse by motion.animateFloat(
+        0f, 1f,
+        infiniteRepeatable(tween(
+            if (state == AssistantVisualState.LISTENING) 1300 else 2500,
             easing = LinearEasing
-        )), label = "ambient_wave"
+        )), label = "pulse"
     )
-    val (highlight, mid, shadow) = when (state) {
-        AssistantVisualState.PREPARING -> Triple(Color(0xFFF0D5B0), Color(0xFFC5A27B), Color(0xFF6C5140))
-        AssistantVisualState.ERROR -> Triple(Color(0xFFF1B8AA), Color(0xFFC98275), Color(0xFF69413C))
-        AssistantVisualState.PAUSED -> Triple(Color(0xFFD0D2C6), Color(0xFF969D8E), Color(0xFF454B42))
-        AssistantVisualState.LISTENING -> Triple(Color(0xFFD4E8C9), Color(0xFF8CC7A7), Color(0xFF315C4A))
-        AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> Triple(Color(0xFFD2E2CF), Color(0xFF91BFA8), Color(0xFF3B6757))
-        AssistantVisualState.SPEAKING -> Triple(Color(0xFFE6D7B9), Color(0xFFA4C8A9), Color(0xFF426A55))
-        AssistantVisualState.IDLE -> Triple(Color(0xFFE3E4D0), Color(0xFF9FC8A7), Color(0xFF3E6B56))
+
+    val (bright, teal, deep) = when (state) {
+        AssistantVisualState.PREPARING -> Triple(Color(0xFFFFE3B8), Color(0xFFB5DCCB), Color(0xFF4B9C91))
+        AssistantVisualState.ERROR -> Triple(Color(0xFFFFB6A8), Color(0xFFE18C86), Color(0xFF804D64))
+        AssistantVisualState.PAUSED -> Triple(Color(0xFFD2D9D4), Color(0xFF8BAFAE), Color(0xFF466675))
+        AssistantVisualState.LISTENING -> Triple(Color(0xFFE0FFE8), Color(0xFF76F0D2), Color(0xFF21AFA8))
+        AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> Triple(Color(0xFFD7FFF2), Color(0xFF61DCCB), Color(0xFF318DB0))
+        AssistantVisualState.SPEAKING -> Triple(Color(0xFFE6FFE0), Color(0xFF8AE8D0), Color(0xFF48B8B4))
+        AssistantVisualState.IDLE -> Triple(Color(0xFFE7F8D9), Color(0xFF91E3C6), Color(0xFF368F87))
     }
 
     Box(
-        modifier = modifier.size(size).testTag("animated_orb_container").clickable(
+        modifier.size(size).testTag("animated_orb_container").clickable(
             interactionSource = remember { MutableInteractionSource() },
             indication = null, onClick = onClick
         ),
         contentAlignment = Alignment.Center
     ) {
         Canvas(Modifier.size(size)) {
-            val center = Offset(this.size.width / 2f, this.size.height / 2f)
-            val radius = this.size.minDimension * 0.355f
+            val c = Offset(this.size.width / 2f, this.size.height / 2f)
+            val unit = this.size.minDimension
+            val r = unit * 0.385f * breath
             val audio = audioLevel.coerceIn(0f, 1f)
-            val scale = breathe + audio * 0.055f
-            val r = radius * scale
+            val active = state == AssistantVisualState.LISTENING ||
+                state == AssistantVisualState.SPEAKING ||
+                state == AssistantVisualState.THINKING ||
+                state == AssistantVisualState.EXECUTING
 
             drawCircle(
-                brush = Brush.radialGradient(
-                    0f to mid.copy(alpha = 0.22f + audio * 0.10f),
-                    0.48f to shadow.copy(alpha = 0.10f),
-                    1f to Color.Transparent,
-                    center = center,
-                    radius = r * (2.15f + wave * 0.10f)
-                ),
-                radius = r * (2.15f + wave * 0.10f), center = center
+                Brush.radialGradient(
+                    0f to teal.copy(alpha = 0.06f + audio * 0.05f),
+                    0.65f to deep.copy(alpha = 0.07f), 1f to Color.Transparent,
+                    center = c, radius = r * 1.75f
+                ), r * 1.75f, c
             )
 
-            if (state == AssistantVisualState.LISTENING || state == AssistantVisualState.SPEAKING) {
-                val waveR = r * (1.18f + wave * 0.58f)
-                drawCircle(
-                    color = mid.copy(alpha = (1f - wave) * 0.22f),
-                    radius = waveR, center = center, style = Stroke(width = 1.4.dp.toPx())
-                )
-            }
-
-            // Morph the silhouette subtly instead of showing a perfectly static sphere.
-            val silhouette = Path()
-            val points = 72
-            for (i in 0 until points) {
-                val a = (i.toFloat() / points) * (2f * PI).toFloat()
-                val wobble = 1f +
-                    0.055f * sin(a * 3f + drift).toFloat() +
-                    0.026f * sin(a * 5f - drift * 1.37f).toFloat() +
-                    0.014f * cos(a * 2f + drift * 0.72f).toFloat()
-                val rr = r * wobble
-                val x = center.x + cos(a).toFloat() * rr
-                val y = center.y + sin(a).toFloat() * rr
-                if (i == 0) silhouette.moveTo(x, y) else silhouette.lineTo(x, y)
-            }
-            silhouette.close()
-            drawPath(
-                path = silhouette,
-                brush = Brush.radialGradient(
-                    0f to highlight.copy(alpha = 0.96f),
-                    0.28f to mid.copy(alpha = 0.96f),
-                    0.62f to mid.copy(alpha = 0.80f),
-                    0.86f to shadow.copy(alpha = 0.94f),
-                    1f to Color(0xFF17221A),
-                    center = Offset(center.x - r * 0.26f, center.y - r * 0.32f),
-                    radius = r * 1.55f
-                )
+            // Fine circular boundary, not a filled sphere.
+            drawCircle(
+                Brush.sweepGradient(
+                    0f to bright.copy(alpha = 0.08f),
+                    0.23f to teal.copy(alpha = if (active) 0.34f else 0.19f),
+                    0.47f to Color.White.copy(alpha = 0.22f),
+                    0.72f to deep.copy(alpha = 0.12f), 1f to bright.copy(alpha = 0.08f),
+                    center = c
+                ), r * 1.16f, c, style = Stroke(1.2.dp.toPx())
+            )
+            drawCircle(
+                teal.copy(alpha = 0.045f + pulse * 0.025f),
+                r * (1.20f + pulse * if (active) 0.09f else 0.025f),
+                c, style = Stroke(0.8.dp.toPx())
             )
 
-            // Three soft currents drift across the form and brighten with live audio.
-            for (i in 0..2) {
-                val y = center.y + (i - 1) * r * 0.34f + sin(drift + i * 1.7f).toFloat() * r * 0.12f
-                val path = Path().apply {
-                    moveTo(center.x - r * 0.82f, y + r * 0.18f)
-                    cubicTo(
-                        center.x - r * 0.24f, y - r * (0.52f + 0.06f * i),
-                        center.x + r * 0.18f, y + r * (0.52f - 0.05f * i),
-                        center.x + r * 0.82f, y - r * 0.16f
+            // Three irregular translucent ribbons form an open-centre energy loop.
+            for (layer in 0..2) {
+                val path = Path()
+                val points = 112
+                for (i in 0..points) {
+                    val a = (i.toFloat() / points) * (2f * PI).toFloat()
+                    val phase = drift + layer * 1.75f
+                    val radius = r * (
+                        0.83f +
+                        sin(a * 2f + phase * 0.78f).toFloat() * (0.105f + layer * 0.012f) +
+                        sin(a * 3f - phase * 1.15f + layer).toFloat() * 0.042f +
+                        cos(a * 5f + phase * 0.5f).toFloat() * 0.018f
                     )
+                    val p = Offset(c.x + cos(a).toFloat() * radius, c.y + sin(a).toFloat() * radius)
+                    if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
                 }
+                path.close()
                 drawPath(
-                    path = path,
-                    brush = Brush.horizontalGradient(
-                        listOf(Color.Transparent, highlight.copy(alpha = 0.18f + audio * 0.16f), Color.White.copy(alpha = 0.24f), mid.copy(alpha = 0.18f), Color.Transparent),
-                        startX = center.x - r, endX = center.x + r
+                    path,
+                    Brush.sweepGradient(
+                        0f to deep.copy(alpha = 0.12f),
+                        0.16f to teal.copy(alpha = 0.20f + audio * 0.08f),
+                        0.30f to bright.copy(alpha = 0.52f + audio * 0.15f),
+                        0.49f to teal.copy(alpha = 0.16f),
+                        0.68f to deep.copy(alpha = 0.28f),
+                        0.83f to bright.copy(alpha = 0.38f), 1f to deep.copy(alpha = 0.12f),
+                        center = c
                     ),
-                    style = Stroke(width = r * (0.10f - i * 0.015f))
+                    style = Stroke(r * if (layer == 0) 0.17f else 0.10f)
+                )
+                drawPath(
+                    path,
+                    Brush.sweepGradient(
+                        0f to Color.Transparent,
+                        0.18f to bright.copy(alpha = 0.70f + audio * 0.18f),
+                        0.35f to teal.copy(alpha = 0.38f),
+                        0.56f to Color.Transparent,
+                        0.78f to bright.copy(alpha = 0.55f),
+                        0.92f to teal.copy(alpha = 0.42f), 1f to Color.Transparent,
+                        center = c
+                    ),
+                    style = Stroke(if (layer == 0) 1.6.dp.toPx() else 0.85.dp.toPx())
                 )
             }
 
-            val glint = Offset(
-                center.x - r * (0.30f + cos(drift * 0.65f).toFloat() * 0.12f),
-                center.y - r * (0.37f + sin(drift * 0.80f).toFloat() * 0.09f)
-            )
+            // Two bright nodes travel independently inside the open loop.
+            val a = drift * if (state == AssistantVisualState.SPEAKING) 1.65f else 0.78f
+            val dot1 = Offset(c.x + cos(a + 0.4f).toFloat() * r * 0.40f,
+                c.y + sin(a + 0.4f).toFloat() * r * 0.24f)
+            val dot2 = Offset(c.x + cos(-drift * 0.57f + 2.5f).toFloat() * r * 0.28f,
+                c.y + sin(-drift * 0.57f + 2.5f).toFloat() * r * 0.43f)
+            listOf(dot1 to unit * (0.014f + audio * 0.004f), dot2 to unit * (0.010f + audio * 0.003f))
+                .forEachIndexed { index, pair ->
+                    val dot = pair.first
+                    val dotRadius = pair.second
+                    val glow = dotRadius * if (active) 8f else 6f
+                    drawCircle(
+                        Brush.radialGradient(
+                            0f to bright.copy(alpha = if (active) 0.50f else 0.32f),
+                            0.28f to teal.copy(alpha = 0.18f), 1f to Color.Transparent,
+                            center = dot, radius = glow
+                        ), glow, dot
+                    )
+                    drawCircle(Color.White.copy(alpha = if (index == 0) 0.95f else 0.78f), dotRadius, dot)
+                }
+
+            val angle = drift * 0.62f - 0.8f
+            val glint = Offset(c.x + cos(angle).toFloat() * r * 1.16f,
+                c.y + sin(angle).toFloat() * r * 1.16f)
             drawCircle(
-                brush = Brush.radialGradient(
-                    0f to Color.White.copy(alpha = 0.66f),
-                    0.22f to highlight.copy(alpha = 0.35f),
-                    1f to Color.Transparent,
-                    center = glint, radius = r * 0.58f
-                ),
-                radius = r * 0.58f, center = glint
-            )
-            drawCircle(Color.White.copy(alpha = 0.70f), radius = r * 0.022f, center = glint)
-            drawCircle(
-                brush = Brush.sweepGradient(
-                    0f to Color.White.copy(alpha = 0.06f),
-                    0.20f to highlight.copy(alpha = 0.48f),
-                    0.44f to shadow.copy(alpha = 0.32f),
-                    0.72f to Color.Transparent,
-                    0.91f to mid.copy(alpha = 0.32f),
-                    1f to Color.White.copy(alpha = 0.06f),
-                    center = center
-                ),
-                radius = r, center = center, style = Stroke(width = 1.5.dp.toPx())
+                Brush.radialGradient(
+                    0f to Color.White.copy(alpha = 0.72f), 0.25f to bright.copy(alpha = 0.42f),
+                    1f to Color.Transparent, center = glint, radius = unit * 0.055f
+                ), unit * 0.055f, glint
             )
         }
     }
