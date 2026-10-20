@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class LlmProviderType(val displayName: String, val defaultModel: String, val baseUrl: String) {
     GEMINI("Google Gemini", "gemini-2.5-flash", "https://generativelanguage.googleapis.com"),
-    GROQ("Groq", "llama-3.3-70b-versatile", "https://api.groq.com/openai/v1"),
+    GROQ("Groq", "openai/gpt-oss-120", "https://api.groq.com/openai/v1"),
     OPENROUTER("OpenRouter", "google/gemini-2.5-flash", "https://openrouter.ai/api/v1"),
-    NIM("NVIDIA NIM", "meta/llama-3.1-70b-instruct", "https://integrate.api.nvidia.com/v1"),
+    NIM("NVIDIA NIM", "nvidia/nemotron-3-ultra-550b-a55b", "https://integrate.api.nvidia.com/v1"),
     LOCAL_OFFLINE("Local On-Device Engine", "local-rule-engine", "")
 }
 
@@ -85,11 +85,20 @@ class SiaPreferences(private val context: Context) {
 
     fun getModelName(provider: LlmProviderType = getSelectedProvider()): String {
         val key = "model_name_${provider.name}"
-        if (prefs.contains(key)) return prefs.getString(key, provider.defaultModel) ?: provider.defaultModel
+        if (prefs.contains(key)) return migrateLegacyDefaultModel(provider, prefs.getString(key, provider.defaultModel) ?: provider.defaultModel)
         if (provider == getSelectedProvider() && prefs.contains("model_name")) {
-            return prefs.getString("model_name", provider.defaultModel) ?: provider.defaultModel
+            return migrateLegacyDefaultModel(provider, prefs.getString("model_name", provider.defaultModel) ?: provider.defaultModel)
         }
         return provider.defaultModel
+    }
+
+    private fun migrateLegacyDefaultModel(provider: LlmProviderType, saved: String): String {
+        val previousDefault = when (provider) {
+            LlmProviderType.GROQ -> "llama-3.3-70b-versatile"
+            LlmProviderType.NIM -> "meta/llama-3.1-70b-instruct"
+            else -> provider.defaultModel
+        }
+        return if (saved == previousDefault) provider.defaultModel else saved
     }
 
     fun setModelName(model: String, provider: LlmProviderType = getSelectedProvider()) {

@@ -81,6 +81,8 @@ class ToolExecutionCoordinator(
                 }
                 executionResults.add(call to result)
             }
+            val requestedFollowUpTask = callsToRun.firstOrNull { it.toolName == "call_again" }
+                ?.toolParams?.get("task")?.trim()?.takeIf { it.isNotBlank() }
             // Remove only the single executed call; keep other independent calls queued.
             callsToRun.forEach { pendingCalls = pendingCalls.filterNot { queued -> signature(queued) == signature(it) } }
 
@@ -96,7 +98,8 @@ class ToolExecutionCoordinator(
                 permanentMemory = planningContext.permanentMemory,
                 rollingSummary = planningContext.rollingSummary,
                 recentMessages = planningContext.recentMessages,
-                currentUserMessage = "Original request: $originalUserText\n\nTool outcomes so far:\n$outcomes\n\n" +
+                currentUserMessage = "Original request: $originalUserText\\n\\nTool outcomes so far:\\n$outcomes\\n\\n" +
+                    (requestedFollowUpTask?.let { "The model explicitly requested a follow-up via call_again. Perform this next task now: $it\\n\\n" } ?: "") +
                     "Continue the task with any necessary unattempted tools, or provide the final user-facing answer. " +
                     "Do not repeat completed side effects.",
                 availableTools = planningContext.availableTools
