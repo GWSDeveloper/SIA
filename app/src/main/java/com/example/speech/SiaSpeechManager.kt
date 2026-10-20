@@ -68,6 +68,8 @@ class SiaSpeechManager(
     private val prefs = SiaPreferences.getInstance(context)
     private var tts: TextToSpeech? = TextToSpeech(context.applicationContext, this)
     private var speechRecognizer: SpeechRecognizer? = null
+    private var gnaniJob: Job? = null
+    private val gnaniSttClient by lazy { GnaniSttClient(context.applicationContext) }
 
     private var activeMediaPlayer: MediaPlayer? = null
     private var currentSarvamJob: Job? = null
@@ -392,6 +394,12 @@ class SiaSpeechManager(
             return
         }
 
+        val gnaniKey = prefs.getGnaniApiKey()
+        if (gnaniKey.isNotBlank()) {
+            startGnaniListening(gnaniKey, wakeOnly = false)
+            return
+        }
+
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             if (!isSessionActive) {
                 _visualState.value = AssistantVisualState.IDLE
@@ -462,8 +470,13 @@ class SiaSpeechManager(
 
         if (!isSessionActive || _visualState.value != AssistantVisualState.PAUSED) return
         if (!SiaPermissionManager.hasRecordAudioPermission(context)) return
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) return
         if (isCurrentlyListening) return
+        val gnaniKey = prefs.getGnaniApiKey()
+        if (gnaniKey.isNotBlank()) {
+            startGnaniListening(gnaniKey, wakeOnly = true)
+            return
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) return
 
         val langPref = prefs.getLanguagePreference()
         val primaryLang = when {
@@ -489,10 +502,74 @@ class SiaSpeechManager(
         }
     }
 
+    private fun startGnaniListening(apiKey: String, wakeOnly: Boolean) {
+        if (isCurrentlyListening) return
+        gnaniJob?.cancel()
+        isCurrentlyListening = true
+        _rmsAudioLevel.value = 0f
+        _visualState.value = if (wakeOnly) AssistantVisualState.PAUSED else AssistantVisualState.LISTENING
+        gnaniJob = managerScope.launch {
+            try {
+                val transcript = gnaniSttClient.listenAndTranscribe(apiKey) { level -> _rmsAudioLevel.value = level }.trim()
+                isCurrentlyListening = false
+                _rmsAudioLevel.value = 0f
+                if (transcript.isBlank()) {
+                    if (isSessionActive && !wakeOnly) mainHandler.postDelayed({ if (isSessionActive) startListening() }, 250)
+                    return@launch
+                }
+                val lower = transcript.lowercase(Locale.ROOT)
+                val wakePhrase = prefs.getWakeWordPhrase().trim().lowercase(Locale.ROOT)
+                if (wakeOnly || _visualState.value == AssistantVisualState.PAUSED) {
+                    if (wakePhrase.isNotBlank() && lower.contains(wakePhrase)) {
+                        val clean = lower.substringAfter(wakePhrase).trim().removePrefix(",").trim()
+                        consecutiveSilenceCount = 0
+                        if (clean.isNotBlank()) {
+                            _visualState.value = AssistantVisualState.THINKING
+                            onSpeechRecognized(clean)
+                        } else {
+                            _visualState.value = AssistantVisualState.LISTENING
+                            speak("Haanji, boliye?") { if (isSessionActive) startListening() }
+                        }
+                    } else if (isSessionActive) {
+                        mainHandler.postDelayed({ if (isSessionActive && _visualState.value == AssistantVisualState.PAUSED) startGnaniListening(apiKey, true) }, 300)
+                    }
+                    return@launch
+                }
+                val stopPhrase = prefs.getStopPhrase().trim().lowercase(Locale.ROOT)
+                if (stopPhrase.isNotBlank() && lower.contains(stopPhrase)) {
+                    pauseSession(notifyUser = true)
+                    return@launch
+                }
+                val clean = if (wakePhrase.isNotBlank() && lower.startsWith(wakePhrase)) {
+                    lower.removePrefix(wakePhrase).trim().removePrefix(",").trim()
+                } else transcript
+                consecutiveSilenceCount = 0
+                _visualState.value = AssistantVisualState.THINKING
+                onSpeechRecognized(clean)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                isCurrentlyListening = false
+                _rmsAudioLevel.value = 0f
+                throw e
+            } catch (e: Exception) {
+                isCurrentlyListening = false
+                _rmsAudioLevel.value = 0f
+                Log.w("SiaSpeechManager", "Gnani STT failed", e)
+                if (isSessionActive && !wakeOnly) {
+                    _visualState.value = AssistantVisualState.LISTENING
+                    onRecognitionError("Gnani STT failed: ${e.message ?: "check network and API key"}.")
+                    mainHandler.postDelayed({ if (isSessionActive) startListening() }, 900)
+                } else {
+                    _visualState.value = AssistantVisualState.PAUSED
+                    onRecognitionError("Gnani wake-word recognition failed. Check network and API key.")
+                }
+            }
+        }
+    }
+
     private fun stopListeningInternal() {
-        try {
-            speechRecognizer?.stopListening()
-        } catch (_: Exception) {}
+        gnaniJob?.cancel()
+        gnaniJob = null
+        try { speechRecognizer?.stopListening() } catch (_: Exception) {}
         isCurrentlyListening = false
         _rmsAudioLevel.value = 0f
     }
@@ -982,6 +1059,7 @@ class SiaSpeechManager(
         try {
             stopSpeaking()
             managerScope.cancel()
+            gnaniJob?.cancel()
             speechRecognizer?.destroy()
             tts?.stop()
             tts?.shutdown()

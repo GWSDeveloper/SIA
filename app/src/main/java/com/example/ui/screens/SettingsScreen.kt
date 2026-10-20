@@ -130,6 +130,8 @@ fun SettingsScreen(
     var speechRate by remember { mutableFloatStateOf(prefs.getSpeechRate()) }
 
     var isSarvamEnabled by remember { mutableStateOf(prefs.isSarvamTtsEnabled()) }
+    var gnaniApiKeyInput by remember { mutableStateOf("") }
+    var hasGnaniKeyConfigured by remember { mutableStateOf(prefs.getGnaniApiKey().isNotBlank()) }
     var sarvamApiKeyInput by remember { mutableStateOf("") }
     var hasSarvamKeyConfigured by remember { mutableStateOf(prefs.getSarvamApiKey().isNotBlank()) }
     var tavilyApiKeyInput by remember { mutableStateOf("") }
@@ -229,6 +231,48 @@ fun SettingsScreen(
         // Section 1: HIGH-QUALITY HINDI & HINGLISH VOICE
         item {
             SettingsCard(title = "Voice & Speech Engine", icon = Icons.Default.RecordVoiceOver, accentColor = SiaGreen) {
+
+                Text("Gnani.ai Speech Recognition", color = SiaTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Use Gnani Vachana STT for Hindi/Hinglish commands. When configured, SIA uses this instead of Android speech recognition.",
+                    color = SiaTextSecondary, fontSize = 12.sp, lineHeight = 17.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = gnaniApiKeyInput,
+                    onValueChange = {
+                        gnaniApiKeyInput = it
+                        if (it.isNotBlank()) {
+                            prefs.setGnaniApiKey(it)
+                            hasGnaniKeyConfigured = true
+                        }
+                    },
+                    label = { Text("Gnani API Key ID", color = SiaTextSecondary) },
+                    placeholder = { Text(if (hasGnaniKeyConfigured) "Key configured · enter to replace" else "Paste your Gnani API key ID", color = SiaTextMuted) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    trailingIcon = {
+                        Icon(imageVector = Icons.Default.Key, contentDescription = "Gnani API key",
+                            tint = if (hasGnaniKeyConfigured) SiaGreen else SiaTextSecondary)
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SiaCyan, unfocusedBorderColor = SiaBorder,
+                        focusedTextColor = SiaTextPrimary, unfocusedTextColor = SiaTextPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth().testTag("input_gnani_stt_api_key")
+                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (hasGnaniKeyConfigured) "Gnani STT configured" else "Not configured · Android STT remains active",
+                        color = if (hasGnaniKeyConfigured) SiaGreen else SiaTextMuted, fontSize = 11.sp)
+                    if (hasGnaniKeyConfigured) {
+                        TextButton(onClick = {
+                            prefs.setGnaniApiKey("")
+                            gnaniApiKeyInput = ""
+                            hasGnaniKeyConfigured = false
+                        }) { Text("Clear", color = SiaRed, fontSize = 11.sp) }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 // Sarvam AI Neural Streaming Voice Header & Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),

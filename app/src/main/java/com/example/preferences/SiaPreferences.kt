@@ -201,6 +201,13 @@ class SiaPreferences(private val context: Context) {
         prefs.edit().putString("stop_phrase", phrase.trim().ifEmpty { "Stop listening" }).apply()
     }
 
+    // Gnani AI speech-to-text configuration
+    fun getGnaniApiKey(): String = prefs.getString("gnani_stt_api_key", "") ?: ""
+
+    fun setGnaniApiKey(key: String) {
+        prefs.edit().putString("gnani_stt_api_key", key.trim()).apply()
+    }
+
     // Sarvam AI Text-to-Speech configuration
     fun isSarvamTtsEnabled(): Boolean = prefs.getBoolean("sarvam_tts_enabled", false)
 
