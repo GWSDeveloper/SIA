@@ -1226,7 +1226,7 @@ fun SettingsCard(
             .fillMaxWidth()
             .border(1.dp, SiaBorder.copy(alpha = 0.78f), RoundedCornerShape(20.dp))
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier

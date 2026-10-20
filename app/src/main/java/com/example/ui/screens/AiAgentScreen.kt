@@ -298,7 +298,7 @@ fun AnimationModeContent(
             .fillMaxSize()
             .padding(horizontal = 20.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         // Top Row: State badge + Install APK button
         Row(
