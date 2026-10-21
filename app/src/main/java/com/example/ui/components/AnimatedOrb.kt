@@ -71,13 +71,14 @@ fun AnimatedOrb(
     )
 
     val (bright, teal, deep) = when (state) {
-        AssistantVisualState.PREPARING -> Triple(Color(0xFFFFE3B8), Color(0xFFB5DCCB), Color(0xFF4B9C91))
-        AssistantVisualState.ERROR -> Triple(Color(0xFFFFB6A8), Color(0xFFE18C86), Color(0xFF804D64))
-        AssistantVisualState.PAUSED -> Triple(Color(0xFFD2D9D4), Color(0xFF8BAFAE), Color(0xFF466675))
-        AssistantVisualState.LISTENING -> Triple(Color(0xFFE0FFE8), Color(0xFF76F0D2), Color(0xFF21AFA8))
-        AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> Triple(Color(0xFFD7FFF2), Color(0xFF61DCCB), Color(0xFF318DB0))
-        AssistantVisualState.SPEAKING -> Triple(Color(0xFFE6FFE0), Color(0xFF8AE8D0), Color(0xFF48B8B4))
-        AssistantVisualState.IDLE -> Triple(Color(0xFFE7F8D9), Color(0xFF91E3C6), Color(0xFF368F87))
+        AssistantVisualState.PREPARING -> Triple(Color(0xFFFFE6C5), Color(0xFFFFB45E), Color(0xFF7D4D9D))
+        AssistantVisualState.ERROR -> Triple(Color(0xFFFFB2C3), Color(0xFFFF3F68), Color(0xFF6B183D))
+        AssistantVisualState.PAUSED -> Triple(Color(0xFFD2DEFF), Color(0xFF759BDF), Color(0xFF283A6B))
+        AssistantVisualState.LISTENING -> Triple(Color(0xFFE4FCFF), Color(0xFF22DFFF), Color(0xFF246CFF))
+        AssistantVisualState.THINKING -> Triple(Color(0xFFF0E1FF), Color(0xFFAD61FF), Color(0xFF3559C9))
+        AssistantVisualState.EXECUTING -> Triple(Color(0xFFFFE7BF), Color(0xFFFFB34D), Color(0xFF8450CF))
+        AssistantVisualState.SPEAKING -> Triple(Color(0xFFE1F8FF), Color(0xFF35D8FF), Color(0xFF8A50FF))
+        AssistantVisualState.IDLE -> Triple(Color(0xFFE5F7FF), Color(0xFF36CFFF), Color(0xFF6657E8))
     }
 
     Box(
@@ -97,6 +98,15 @@ fun AnimatedOrb(
                 state == AssistantVisualState.THINKING ||
                 state == AssistantVisualState.EXECUTING
 
+            // Local dark glass backing keeps the Nexus rings readable against bright content.
+            drawCircle(
+                Brush.radialGradient(
+                    0f to Color(0xFF102448).copy(alpha = 0.96f),
+                    0.72f to Color(0xFF050B1A).copy(alpha = 0.98f),
+                    1f to Color(0xFF020611).copy(alpha = 0.99f),
+                    center = c, radius = r * 1.08f
+                ), r * 1.08f, c
+            )
             drawCircle(
                 Brush.radialGradient(
                     0f to teal.copy(alpha = 0.06f + audio * 0.05f),
