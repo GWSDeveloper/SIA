@@ -191,8 +191,8 @@ class SiaFloatingService : Service() {
             }
             val root = FrameLayout(this).apply {
                 background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(
-                    Color.argb(18, 5, 10, 22), Color.argb(92, 5, 10, 22),
-                    Color.argb(205, 5, 10, 22), Color.argb(242, 5, 10, 22)
+                    Color.argb(218, 3, 7, 17), Color.argb(232, 4, 9, 21),
+                    Color.argb(244, 3, 7, 17), Color.argb(250, 2, 5, 13)
                 ))
                 isClickable = true
                 contentDescription = "SIA immersive voice mode. Tap anywhere to switch to the floating orb."
@@ -202,14 +202,30 @@ class SiaFloatingService : Service() {
                 gravity = Gravity.CENTER_HORIZONTAL
                 setPadding((28 * density).toInt(), (30 * density).toInt(), (28 * density).toInt(), (34 * density).toInt())
             }
-            val orb = FloatingEnergyOrbView(this).apply {
-                layoutParams = LinearLayout.LayoutParams((164 * density).toInt(), (164 * density).toInt()).apply {
-                    bottomMargin = (20 * density).toInt()
+            // Dedicated near-black glass puck keeps the Nexus ring readable over any app wallpaper.
+            val orbDockSize = (190 * density).toInt()
+            val orbDock = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(orbDockSize, orbDockSize).apply {
+                    bottomMargin = (18 * density).toInt()
                 }
-                contentDescription = "SIA animated voice orb"
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor("#F7040918"))
+                    setStroke((1.2f * density).toInt(), Color.parseColor("#773A8DFF"))
+                }
+                elevation = 14 * density
+                foreground = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setStroke((1 * density).toInt(), Color.parseColor("#3337E8FF"))
+                }
+            }
+            val orb = FloatingEnergyOrbView(this).apply {
+                layoutParams = FrameLayout.LayoutParams((170 * density).toInt(), (170 * density).toInt(), Gravity.CENTER)
+                contentDescription = "SIA animated Nexus energy ring"
             }
             orbImageView = orb
-            content.addView(orb)
+            orbDock.addView(orb)
+            content.addView(orbDock)
             val title = TextView(this).apply {
                 text = SiaPreferences.getInstance(this@SiaFloatingService).getAssistantName()
                 setTextColor(Color.WHITE)
