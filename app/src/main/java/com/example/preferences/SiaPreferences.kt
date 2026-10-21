@@ -9,9 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
 
 enum class LlmProviderType(val displayName: String, val defaultModel: String, val baseUrl: String) {
     GEMINI("Google Gemini", "gemini-2.5-flash", "https://generativelanguage.googleapis.com"),
-    GROQ("Groq", "llama-3.3-70b-versatile", "https://api.groq.com/openai/v1"),
+    GROQ("Groq", "openai/gpt-oss-120", "https://api.groq.com/openai/v1"),
     OPENROUTER("OpenRouter", "google/gemini-2.5-flash", "https://openrouter.ai/api/v1"),
-    NIM("NVIDIA NIM", "meta/llama-3.1-70b-instruct", "https://integrate.api.nvidia.com/v1"),
+    NIM("NVIDIA NIM", "nvidia/nemotron-3-ultra-550b-a55b", "https://integrate.api.nvidia.com/v1"),
     LOCAL_OFFLINE("Local On-Device Engine", "local-rule-engine", "")
 }
 
@@ -52,6 +52,10 @@ class SiaPreferences(private val context: Context) {
     private val _wakeWordEnabled = MutableStateFlow(isWakeWordEnabled())
     val wakeWordEnabled: StateFlow<Boolean> = _wakeWordEnabled.asStateFlow()
 
+    fun getUserName(): String = prefs.getString("user_name", "")?.trim().orEmpty()
+
+    fun setUserName(name: String) { prefs.edit().putString("user_name", name.trim()).apply() }
+
     fun getAssistantName(): String = prefs.getString("assistant_name", "SIA") ?: "SIA"
 
     fun setAssistantName(name: String) {
@@ -70,20 +74,40 @@ class SiaPreferences(private val context: Context) {
     }
 
     fun setSelectedProvider(provider: LlmProviderType) {
+        val previous = getSelectedProvider()
+        if (!prefs.contains("model_name_${previous.name}") && prefs.contains("model_name")) {
+            prefs.edit().putString("model_name_${previous.name}", prefs.getString("model_name", previous.defaultModel)).apply()
+        }
         prefs.edit().putString("provider_type", provider.name).apply()
         _selectedProvider.value = provider
-        setModelName(provider.defaultModel)
+        _modelName.value = getModelName(provider)
     }
 
-    fun getModelName(): String {
-        return prefs.getString("model_name", getSelectedProvider().defaultModel)
-            ?: getSelectedProvider().defaultModel
+    fun getModelName(provider: LlmProviderType = getSelectedProvider()): String {
+        val key = "model_name_${provider.name}"
+        if (prefs.contains(key)) return migrateLegacyDefaultModel(provider, prefs.getString(key, provider.defaultModel) ?: provider.defaultModel)
+        if (provider == getSelectedProvider() && prefs.contains("model_name")) {
+            return migrateLegacyDefaultModel(provider, prefs.getString("model_name", provider.defaultModel) ?: provider.defaultModel)
+        }
+        return provider.defaultModel
     }
 
-    fun setModelName(model: String) {
-        val trimmed = model.trim().ifEmpty { getSelectedProvider().defaultModel }
-        prefs.edit().putString("model_name", trimmed).apply()
-        _modelName.value = trimmed
+    private fun migrateLegacyDefaultModel(provider: LlmProviderType, saved: String): String {
+        val previousDefault = when (provider) {
+            LlmProviderType.GROQ -> "llama-3.3-70b-versatile"
+            LlmProviderType.NIM -> "meta/llama-3.1-70b-instruct"
+            else -> provider.defaultModel
+        }
+        return if (saved == previousDefault) provider.defaultModel else saved
+    }
+
+    fun setModelName(model: String, provider: LlmProviderType = getSelectedProvider()) {
+        val trimmed = model.trim().ifEmpty { provider.defaultModel }
+        prefs.edit().putString("model_name_${provider.name}", trimmed).apply()
+        if (provider == getSelectedProvider()) {
+            prefs.edit().putString("model_name", trimmed).apply()
+            _modelName.value = trimmed
+        }
     }
 
     fun getApiKey(provider: LlmProviderType): String {
@@ -186,8 +210,15 @@ class SiaPreferences(private val context: Context) {
         prefs.edit().putString("stop_phrase", phrase.trim().ifEmpty { "Stop listening" }).apply()
     }
 
+    // Gnani AI speech-to-text configuration
+    fun getGnaniApiKey(): String = prefs.getString("gnani_stt_api_key", "") ?: ""
+
+    fun setGnaniApiKey(key: String) {
+        prefs.edit().putString("gnani_stt_api_key", key.trim()).apply()
+    }
+
     // Sarvam AI Text-to-Speech configuration
-    fun isSarvamTtsEnabled(): Boolean = prefs.getBoolean("sarvam_tts_enabled", true)
+    fun isSarvamTtsEnabled(): Boolean = prefs.getBoolean("sarvam_tts_enabled", false)
 
     fun setSarvamTtsEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("sarvam_tts_enabled", enabled).apply()

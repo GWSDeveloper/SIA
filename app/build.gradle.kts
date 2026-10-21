@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.siaassistant.vnkjqz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 20107
+    versionName = "2.1.7"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

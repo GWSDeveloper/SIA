@@ -28,13 +28,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 import com.example.tools.InstalledAppsHelper
-import com.example.tools.ToolRegistry
 
 enum class AssistantVisualState {
     IDLE,
@@ -69,6 +69,8 @@ class SiaSpeechManager(
     private val prefs = SiaPreferences.getInstance(context)
     private var tts: TextToSpeech? = TextToSpeech(context.applicationContext, this)
     private var speechRecognizer: SpeechRecognizer? = null
+    private var gnaniJob: Job? = null
+    private val gnaniSttClient by lazy { GnaniSttClient(context.applicationContext) }
 
     private var activeMediaPlayer: MediaPlayer? = null
     private var currentSarvamJob: Job? = null
@@ -393,6 +395,12 @@ class SiaSpeechManager(
             return
         }
 
+        val gnaniKey = prefs.getGnaniApiKey()
+        if (gnaniKey.isNotBlank()) {
+            startGnaniListening(gnaniKey, wakeOnly = false)
+            return
+        }
+
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             if (!isSessionActive) {
                 _visualState.value = AssistantVisualState.IDLE
@@ -414,10 +422,12 @@ class SiaSpeechManager(
         }
 
         val langPref = prefs.getLanguagePreference()
+        // Hinglish defaults to en-IN so speech results are more likely to be Roman text.
+        // Explicit Hindi mode remains hi-IN; explicit English mode remains en-IN.
         val primaryLang = when {
-            langPref.contains("Hindi", ignoreCase = true) -> "hi-IN"
-            langPref.contains("English", ignoreCase = true) -> "en-IN"
-            else -> "hi-IN"
+            langPref.equals("Hindi", ignoreCase = true) -> "hi-IN"
+            langPref.equals("English", ignoreCase = true) -> "en-IN"
+            else -> "en-IN"
         }
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -461,8 +471,10 @@ class SiaSpeechManager(
 
         if (!isSessionActive || _visualState.value != AssistantVisualState.PAUSED) return
         if (!SiaPermissionManager.hasRecordAudioPermission(context)) return
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) return
         if (isCurrentlyListening) return
+        // Keep wake-word detection on the local Android recognizer so a paused
+        // assistant does not make repeated billable STT requests while idle.
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) return
 
         val langPref = prefs.getLanguagePreference()
         val primaryLang = when {
@@ -488,10 +500,84 @@ class SiaSpeechManager(
         }
     }
 
+    private fun startGnaniListening(apiKey: String, wakeOnly: Boolean) {
+        if (isCurrentlyListening) return
+        gnaniJob?.cancel()
+        isCurrentlyListening = true
+        _rmsAudioLevel.value = 0f
+        _visualState.value = if (wakeOnly) AssistantVisualState.PAUSED else AssistantVisualState.LISTENING
+        gnaniJob = managerScope.launch {
+            try {
+                val transcript = withContext(Dispatchers.IO) {
+                    gnaniSttClient.listenAndTranscribe(apiKey) { level ->
+                        mainHandler.post { _rmsAudioLevel.value = level }
+                    }
+                }.trim()
+                isCurrentlyListening = false
+                _rmsAudioLevel.value = 0f
+                if (transcript.isBlank()) {
+                    if (isSessionActive && !wakeOnly) mainHandler.postDelayed({ if (isSessionActive) startListening() }, 250)
+                    return@launch
+                }
+                val lower = transcript.lowercase(Locale.ROOT)
+                val wakePhrase = prefs.getWakeWordPhrase().trim().lowercase(Locale.ROOT)
+                if (wakeOnly || _visualState.value == AssistantVisualState.PAUSED) {
+                    if (wakePhrase.isNotBlank() && lower.contains(wakePhrase)) {
+                        val clean = lower.substringAfter(wakePhrase).trim().removePrefix(",").trim()
+                        consecutiveSilenceCount = 0
+                        if (clean.isNotBlank()) {
+                            _visualState.value = AssistantVisualState.THINKING
+                            onSpeechRecognized(clean)
+                        } else {
+                            _visualState.value = AssistantVisualState.LISTENING
+                            speak("Haanji, boliye?") { if (isSessionActive) startListening() }
+                        }
+                    } else if (isSessionActive) {
+                        mainHandler.postDelayed({ if (isSessionActive && _visualState.value == AssistantVisualState.PAUSED) startGnaniListening(apiKey, true) }, 300)
+                    }
+                    return@launch
+                }
+                val stopPhrase = prefs.getStopPhrase().trim().lowercase(Locale.ROOT)
+                if (stopPhrase.isNotBlank() && lower.contains(stopPhrase)) {
+                    pauseSession(notifyUser = true)
+                    return@launch
+                }
+                val clean = if (wakePhrase.isNotBlank() && lower.startsWith(wakePhrase)) {
+                    lower.removePrefix(wakePhrase).trim().removePrefix(",").trim()
+                } else transcript
+                consecutiveSilenceCount = 0
+                _visualState.value = AssistantVisualState.THINKING
+                onSpeechRecognized(clean)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                isCurrentlyListening = false
+                _rmsAudioLevel.value = 0f
+                throw e
+            } catch (e: Exception) {
+                isCurrentlyListening = false
+                _rmsAudioLevel.value = 0f
+                Log.w("SiaSpeechManager", "Gnani STT failed", e)
+                val message = e.message.orEmpty()
+                if (isSessionActive && !wakeOnly && message.startsWith("No speech detected")) {
+                    consecutiveSilenceCount++
+                    if (consecutiveSilenceCount < 3) {
+                        _visualState.value = AssistantVisualState.LISTENING
+                        mainHandler.postDelayed({ if (isSessionActive) startListening() }, 300)
+                    } else {
+                        pauseSession(notifyUser = false)
+                        onRecognitionError("Listening paused due to silence. Say '${prefs.getWakeWordPhrase()}' or tap to resume.")
+                    }
+                } else {
+                    _visualState.value = if (wakeOnly) AssistantVisualState.PAUSED else AssistantVisualState.ERROR
+                    onRecognitionError("Gnani STT failed: ${message.ifBlank { "check network and API key" }}.")
+                }
+            }
+        }
+    }
+
     private fun stopListeningInternal() {
-        try {
-            speechRecognizer?.stopListening()
-        } catch (_: Exception) {}
+        gnaniJob?.cancel()
+        gnaniJob = null
+        try { speechRecognizer?.stopListening() } catch (_: Exception) {}
         isCurrentlyListening = false
         _rmsAudioLevel.value = 0f
     }
@@ -681,30 +767,36 @@ class SiaSpeechManager(
             } catch (_: Exception) {}
         } else {
             try {
-                val systemVoices = engine.voices
-                if (systemVoices != null && systemVoices.isNotEmpty()) {
-                    if (preferHindi) {
-                        val hiVoice = systemVoices.firstOrNull { it.locale.language.equals("hi", ignoreCase = true) }
-                        if (hiVoice != null) {
-                            engine.voice = hiVoice
-                            engine.language = hiVoice.locale
-                        } else {
-                            val enInVoice = systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) && it.locale.country.equals("IN", ignoreCase = true) }
-                            if (enInVoice != null) {
-                                engine.voice = enInVoice
-                                engine.language = enInVoice.locale
-                            }
-                        }
-                    } else {
-                        val enInVoice = systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) && it.locale.country.equals("IN", ignoreCase = true) }
-                            ?: systemVoices.firstOrNull { it.locale.language.equals("en", ignoreCase = true) }
-                        if (enInVoice != null) {
-                            engine.voice = enInVoice
-                            engine.language = enInVoice.locale
+                val systemVoices = engine.voices.orEmpty()
+                if (systemVoices.isNotEmpty()) {
+                    val hindiVoices = systemVoices.filter { it.locale.language.equals("hi", ignoreCase = true) }
+                    val femaleHindiVoices = hindiVoices.filter { detectGenuineVoiceGender(it) == "Female" }
+                    val candidates = when {
+                        femaleHindiVoices.isNotEmpty() -> femaleHindiVoices
+                        hindiVoices.isNotEmpty() -> hindiVoices
+                        else -> systemVoices.filter {
+                            it.locale.language.equals("en", ignoreCase = true) &&
+                                it.locale.country.equals("IN", ignoreCase = true)
                         }
                     }
+                    val bestVoice = candidates.sortedWith(
+                        compareByDescending<Voice> { it.isNetworkConnectionRequired }
+                            .thenByDescending { it.quality >= Voice.QUALITY_VERY_HIGH }
+                            .thenByDescending { it.quality >= Voice.QUALITY_HIGH }
+                            .thenByDescending { it.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) != true }
+                    ).firstOrNull()
+                    if (bestVoice != null) {
+                        engine.voice = bestVoice
+                        engine.language = bestVoice.locale
+                    } else {
+                        engine.setLanguage(Locale.forLanguageTag("hi-IN"))
+                    }
+                } else {
+                    engine.setLanguage(Locale.forLanguageTag("hi-IN"))
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                try { engine.setLanguage(Locale.forLanguageTag("hi-IN")) } catch (_: Exception) {}
+            }
         }
 
         engine.setPitch(prefs.getSpeechPitch())
@@ -928,49 +1020,11 @@ class SiaSpeechManager(
     }
 
     private fun selectBestRecognitionHypothesis(matches: List<String>): String {
-        if (matches.isEmpty()) return ""
-        val first = matches[0].trim()
-        if (matches.size == 1) return first
-
-        // If top match is conversational, preserve it exactly as spoken
-        val lowerFirst = first.lowercase(Locale.ROOT)
-        if (lowerFirst.contains("batao") || lowerFirst.contains("samjhao") || lowerFirst.contains("ke baare mein") || lowerFirst.contains("who are you") || lowerFirst.contains("tell me")) {
-            return first
-        }
-
-        // 1. If first match resolves cleanly as a supported local action, use it
-        val firstRes = ToolRegistry.resolveCommand(first)
-        if (firstRes is ToolRegistry.CommandResolution.LocalActions) {
-            return first
-        }
-
-        // 2. Check if an alternative hypothesis resolves cleanly as a supported local action
-        for (i in 1 until matches.size) {
-            val alt = matches[i].trim()
-            val altRes = ToolRegistry.resolveCommand(alt)
-            if (altRes is ToolRegistry.CommandResolution.LocalActions) {
-                return alt
-            }
-        }
-
-        // 3. If there is an app opening verb and installed apps can disambiguate the candidate
-        val openVerbs = listOf("open", "kholo", "khol do", "chalao", "chala do", "launch", "start", "run")
-        if (openVerbs.any { lowerFirst.contains(it) }) {
-            val installedApps = InstalledAppsHelper.getInstalledAppLabels(context)
-            if (installedApps.isNotEmpty()) {
-                for (candidateUtterance in matches) {
-                    val candidateApp = candidateUtterance
-                        .replace(Regex("""\b(please|zara|bhai|kar dena|kardo|kar do|karo|karna|karein|kijiye|chala dena|chalado|chala do|chalao|khol dena|kholdo|khol do|kholo|open|launch|start|run|app|application)\b""", RegexOption.IGNORE_CASE), " ")
-                        .trim()
-                    val matchedApp = InstalledAppsHelper.findMatchingInstalledApp(candidateApp, installedApps)
-                    if (matchedApp != null) {
-                        return "Open $matchedApp"
-                    }
-                }
-            }
-        }
-
-        return first
+        // Never replace the recognizer's top hypothesis with a shorter command inferred
+        // from an alternate hypothesis. Doing so can silently discard independent actions
+        // (e.g. "Naimish ko call karo and WhatsApp kholo" becoming "Open WhatsApp").
+        // Keep the original top transcription intact; planning belongs to the agent layer.
+        return matches.firstOrNull()?.trim().orEmpty()
     }
 
     fun testVoice(sampleText: String = "Namaste! Main SIA hoon, aapki personal AI assistant. Kaise help kar sakti hoon?") {
@@ -1013,6 +1067,7 @@ class SiaSpeechManager(
         try {
             stopSpeaking()
             managerScope.cancel()
+            gnaniJob?.cancel()
             speechRecognizer?.destroy()
             tts?.stop()
             tts?.shutdown()

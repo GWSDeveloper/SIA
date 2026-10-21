@@ -21,13 +21,21 @@ class WebSearchAgent(context: Context) {
         val apiKey = preferences.getTavilyApiKey()
         if (apiKey.isBlank()) return ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "TAVILY_KEY_MISSING: Add a Tavily API key in SIA Settings to enable web search.")
         return try {
-            val payload = JSONObject().put("api_key", apiKey).put("query", cleanQuery).put("search_depth", "basic").put("max_results", 5).put("include_answer", true).put("include_raw_content", false)
+            val payload = JSONObject().put("api_key", apiKey).put("query", cleanQuery).put("search_depth", "advanced").put("max_results", 5).put("include_answer", true).put("include_raw_content", false)
             val request = Request.Builder().url("https://api.tavily.com/search").post(payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
             client.newCall(request).execute().use { response ->
                 val bodyText = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     val status = response.code
-                    val message = when (status) { 401, 403 -> "Tavily rejected the API key. Check it in SIA Settings."; 429 -> "Tavily request limit reached. Try again later."; else -> "Web search is temporarily unavailable (HTTP $status)." }
+                    // Safe diagnostic from Tavily's response; never include the API key or request body.
+                    val providerDetail = bodyText.replace(Regex("[\\r\\n\\t]+"), " ").take(240)
+                    val message = when (status) {
+                        400 -> "Tavily rejected the search request (HTTP 400): $providerDetail"
+                        401, 403 -> "Tavily rejected the API key. Check it in SIA Settings."
+                        429 -> "Tavily request limit reached. Try again later."
+                        in 500..599 -> "Tavily server error (HTTP $status): $providerDetail"
+                        else -> "Web search failed (HTTP $status): $providerDetail"
+                    }
                     return ToolExecutionResult(if (status == 429 || status >= 500) ToolResultStatus.RETRYABLE_ERROR else ToolResultStatus.PERMANENT_ERROR, message)
                 }
                 val json = JSONObject(bodyText)
@@ -42,7 +50,7 @@ class WebSearchAgent(context: Context) {
                     val body = item.optString("content").trim()
                     if (title.isNotBlank() || body.isNotBlank()) excerpts.add("Source: $title\nURL: $url\nExcerpt: $body")
                 }
-                if (excerpts.isEmpty()) ToolExecutionResult(ToolResultStatus.SUCCESS, "No useful web results were returned for '$cleanQuery'.")
+                if (excerpts.isEmpty()) ToolExecutionResult(ToolResultStatus.RETRYABLE_ERROR, "No useful web results were returned for '$cleanQuery'. The search did not verify an answer; retry with a more specific, date-anchored query.")
                 else ToolExecutionResult(ToolResultStatus.SUCCESS, "Web search results for: $cleanQuery\n\n" + excerpts.joinToString("\n\n"), data = mapOf("query" to cleanQuery, "result_count" to (results?.length() ?: 0).toString()))
             }
         } catch (_: IOException) {

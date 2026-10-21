@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Memory
@@ -113,9 +114,10 @@ fun SettingsScreen(
     val prefs = viewModel.preferences
     val coroutineScope = rememberCoroutineScope()
 
+    var userName by remember { mutableStateOf(prefs.getUserName()) }
     var assistantName by remember { mutableStateOf(prefs.getAssistantName()) }
     var selectedProvider by remember { mutableStateOf(prefs.getSelectedProvider()) }
-    var modelName by remember { mutableStateOf(prefs.getModelName()) }
+    var modelName by remember { mutableStateOf(prefs.getModelName(selectedProvider)) }
     var apiKeyText by remember { mutableStateOf(prefs.getApiKey(selectedProvider)) }
     var isApiKeyVisible by remember { mutableStateOf(false) }
 
@@ -128,6 +130,8 @@ fun SettingsScreen(
     var speechRate by remember { mutableFloatStateOf(prefs.getSpeechRate()) }
 
     var isSarvamEnabled by remember { mutableStateOf(prefs.isSarvamTtsEnabled()) }
+    var gnaniApiKeyInput by remember { mutableStateOf("") }
+    var hasGnaniKeyConfigured by remember { mutableStateOf(prefs.getGnaniApiKey().isNotBlank()) }
     var sarvamApiKeyInput by remember { mutableStateOf("") }
     var hasSarvamKeyConfigured by remember { mutableStateOf(prefs.getSarvamApiKey().isNotBlank()) }
     var tavilyApiKeyInput by remember { mutableStateOf("") }
@@ -151,6 +155,9 @@ fun SettingsScreen(
     // Memory management state
     val permanentMemories by viewModel.memoryManager.permanentMemoriesFlow.collectAsState(initial = emptyList())
     var showAddMemoryDialog by remember { mutableStateOf(false) }
+    var editingMemory by remember { mutableStateOf<com.example.data.MemoryEntity?>(null) }
+    var editedMemoryContent by remember { mutableStateOf("") }
+    var showMemoryEditConfirmation by remember { mutableStateOf(false) }
 
     // Scheduled Tasks state
     val db = remember { SiaDatabase.getDatabase(context) }
@@ -163,9 +170,9 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(SiaBgDark)
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 18.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Top Header
         item {
@@ -173,14 +180,22 @@ fun SettingsScreen(
                 Text(
                     text = "Settings & Preferences",
                     color = SiaTextPrimary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = "Configure high-quality Hindi/Hinglish voice, wake word, providers, and actions.",
                     color = SiaTextSecondary,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
+            }
+        }
+
+        item {
+            SettingsCard(title = "Your Name", icon = Icons.Default.Psychology, accentColor = SiaPink) {
+                OutlinedTextField(value = userName, onValueChange = { userName = it; prefs.setUserName(it) }, label = { Text("What should SIA call you?", color = SiaTextSecondary) }, modifier = Modifier.fillMaxWidth().testTag("settings_user_name_input"), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = SiaCyan, unfocusedBorderColor = SiaBorder, focusedTextColor = SiaTextPrimary, unfocusedTextColor = SiaTextPrimary))
+                Text("SIA will use your name naturally in conversations.", color = SiaTextMuted, fontSize = 11.sp)
             }
         }
 
@@ -216,6 +231,48 @@ fun SettingsScreen(
         // Section 1: HIGH-QUALITY HINDI & HINGLISH VOICE
         item {
             SettingsCard(title = "Voice & Speech Engine", icon = Icons.Default.RecordVoiceOver, accentColor = SiaGreen) {
+
+                Text("Gnani.ai Speech Recognition", color = SiaTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Use Gnani Vachana STT for Hindi/Hinglish commands. When configured, SIA uses this instead of Android speech recognition.",
+                    color = SiaTextSecondary, fontSize = 12.sp, lineHeight = 17.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = gnaniApiKeyInput,
+                    onValueChange = {
+                        gnaniApiKeyInput = it
+                        if (it.isNotBlank()) {
+                            prefs.setGnaniApiKey(it)
+                            hasGnaniKeyConfigured = true
+                        }
+                    },
+                    label = { Text("Gnani API Key ID", color = SiaTextSecondary) },
+                    placeholder = { Text(if (hasGnaniKeyConfigured) "Key configured · enter to replace" else "Paste your Gnani API key ID", color = SiaTextMuted) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    trailingIcon = {
+                        Icon(imageVector = Icons.Default.Key, contentDescription = "Gnani API key",
+                            tint = if (hasGnaniKeyConfigured) SiaGreen else SiaTextSecondary)
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SiaCyan, unfocusedBorderColor = SiaBorder,
+                        focusedTextColor = SiaTextPrimary, unfocusedTextColor = SiaTextPrimary
+                    ),
+                    modifier = Modifier.fillMaxWidth().testTag("input_gnani_stt_api_key")
+                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (hasGnaniKeyConfigured) "Gnani STT configured" else "Not configured · Android STT remains active",
+                        color = if (hasGnaniKeyConfigured) SiaGreen else SiaTextMuted, fontSize = 11.sp)
+                    if (hasGnaniKeyConfigured) {
+                        TextButton(onClick = {
+                            prefs.setGnaniApiKey("")
+                            gnaniApiKeyInput = ""
+                            hasGnaniKeyConfigured = false
+                        }) { Text("Clear", color = SiaRed, fontSize = 11.sp) }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 // Sarvam AI Neural Streaming Voice Header & Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -692,7 +749,7 @@ fun SettingsScreen(
                                 onClick = {
                                     selectedProvider = provider
                                     prefs.setSelectedProvider(provider)
-                                    modelName = provider.defaultModel
+                                    modelName = prefs.getModelName(provider)
                                     apiKeyText = prefs.getApiKey(provider)
                                     isProviderDropdownExpanded = false
                                 }
@@ -707,7 +764,7 @@ fun SettingsScreen(
                     value = modelName,
                     onValueChange = {
                         modelName = it
-                        prefs.setModelName(it)
+                        prefs.setModelName(it, selectedProvider)
                     },
                     label = { Text("Model Identifier", color = SiaTextSecondary) },
                     colors = OutlinedTextFieldDefaults.colors(
@@ -865,10 +922,18 @@ fun SettingsScreen(
                             Text(mem.key, color = SiaCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             Text(mem.content, color = SiaTextPrimary, fontSize = 12.sp)
                         }
-                        IconButton(onClick = {
-                            coroutineScope.launch { viewModel.memoryManager.deletePermanentMemory(mem) }
-                        }) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Memory", tint = SiaTextMuted, modifier = Modifier.size(18.dp))
+                        Row {
+                            IconButton(onClick = {
+                                editingMemory = mem
+                                editedMemoryContent = mem.content
+                            }) {
+                                Icon(imageVector = Icons.Default.Edit, contentDescription = "Edit Memory", tint = SiaCyan, modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(onClick = {
+                                coroutineScope.launch { viewModel.memoryManager.deletePermanentMemory(mem) }
+                            }) {
+                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Delete Memory", tint = SiaTextMuted, modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
                 }
@@ -1081,6 +1146,55 @@ fun SettingsScreen(
         }
     }
 
+    // Editing permanent memory requires an explicit review/confirmation step.
+    editingMemory?.let { memory ->
+        AlertDialog(
+            onDismissRequest = { editingMemory = null; showMemoryEditConfirmation = false },
+            title = { Text("Edit Permanent Memory", color = SiaTextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(memory.key, color = SiaCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editedMemoryContent,
+                        onValueChange = { editedMemoryContent = it },
+                        label = { Text("Memory profile text", color = SiaTextSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SiaCyan,
+                            unfocusedBorderColor = SiaBorder,
+                            focusedTextColor = SiaTextPrimary,
+                            unfocusedTextColor = SiaTextPrimary
+                        )
+                    )
+                    if (showMemoryEditConfirmation) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Save these changes to SIA's permanent memory?", color = SiaTextPrimary, fontSize = 13.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                if (!showMemoryEditConfirmation) {
+                    Button(onClick = { showMemoryEditConfirmation = true }) { Text("Review changes") }
+                } else {
+                    Button(onClick = {
+                        coroutineScope.launch {
+                            viewModel.memoryManager.updatePermanentMemory(memory.id, memory.key, editedMemoryContent)
+                        }
+                        editingMemory = null
+                        showMemoryEditConfirmation = false
+                    }) { Text("Confirm & Save") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    if (showMemoryEditConfirmation) showMemoryEditConfirmation = false else editingMemory = null
+                }) { Text(if (showMemoryEditConfirmation) "Back" else "Cancel", color = SiaTextSecondary) }
+            },
+            containerColor = SiaCardBg
+        )
+    }
+
     // Add Memory Dialog
     if (showAddMemoryDialog) {
         var memKey by remember { mutableStateOf("") }
@@ -1152,26 +1266,26 @@ fun SettingsCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, SiaBorder, RoundedCornerShape(16.dp))
+            .border(1.dp, SiaBorder.copy(alpha = 0.78f), RoundedCornerShape(22.dp))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.2f)),
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(accentColor.copy(alpha = 0.16f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(imageVector = icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                Text(text = title, color = SiaTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(text = title, color = SiaTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(9.dp))
             content()
         }
     }

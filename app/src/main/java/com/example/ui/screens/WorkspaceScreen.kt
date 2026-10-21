@@ -133,20 +133,20 @@ fun WorkspaceScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(SiaSurfaceDark)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
                 Text(
-                    text = "Internal Workspace",
+                    text = "Workspace",
                     color = SiaTextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Path: /workspace${currentDirectory.path.removePrefix(rootWorkspaceDir.path)}",
-                    color = SiaCyan,
+                    text = "/workspace${currentDirectory.path.removePrefix(rootWorkspaceDir.path)}",
+                    color = SiaTextMuted,
                     fontSize = 12.sp
                 )
             }
@@ -226,15 +226,15 @@ fun WorkspaceScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp),
                 contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 items(items, key = { it.file.absolutePath }) { item ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = SiaCardBg),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(18.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, SiaBorder, RoundedCornerShape(12.dp))
+                            .border(1.dp, SiaBorder.copy(alpha = 0.72f), RoundedCornerShape(18.dp))
                             .clickable {
                                 if (item.isDirectory) {
                                     currentDirectory = item.file
@@ -247,7 +247,7 @@ fun WorkspaceScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -276,8 +276,8 @@ fun WorkspaceScreen(
                                     Text(
                                         text = item.name,
                                         color = SiaTextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Medium
                                     )
                                     val dateStr = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(item.lastModifiedMs))
                                     val sizeInfo = if (item.isDirectory) "Folder" else "${item.sizeBytes} B"

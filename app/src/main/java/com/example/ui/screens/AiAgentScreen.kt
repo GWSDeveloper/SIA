@@ -5,10 +5,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +31,9 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -52,6 +57,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,6 +70,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.ConversationEntity
@@ -110,58 +121,14 @@ fun AiAgentScreen(
             .fillMaxSize()
             .background(SiaBgDark)
     ) {
-        // Mode Switcher: Animation vs Chat
-        TabRow(
-            selectedTabIndex = if (agentMode == AgentMode.ANIMATION) 0 else 1,
-            containerColor = SiaSurfaceDark,
-            contentColor = SiaCyan,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[if (agentMode == AgentMode.ANIMATION) 0 else 1]),
-                    color = SiaCyan,
-                    height = 3.dp
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(22.dp)).background(SiaSurfaceDark)
+                .border(1.dp, SiaBorder.copy(alpha = 0.85f), RoundedCornerShape(22.dp)).padding(5.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Tab(
-                selected = agentMode == AgentMode.ANIMATION,
-                onClick = { viewModel.setAgentMode(AgentMode.ANIMATION) },
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Animation",
-                            fontWeight = if (agentMode == AgentMode.ANIMATION) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                },
-                modifier = Modifier.testTag("tab_animation_mode")
-            )
-            Tab(
-                selected = agentMode == AgentMode.CHAT,
-                onClick = { viewModel.setAgentMode(AgentMode.CHAT) },
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Chat,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Chat (${messages.size})",
-                            fontWeight = if (agentMode == AgentMode.CHAT) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                },
-                modifier = Modifier.testTag("tab_chat_mode")
-            )
+            ModeSegment("Assistant", { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp)) }, agentMode == AgentMode.ANIMATION, { viewModel.setAgentMode(AgentMode.ANIMATION) }, Modifier.weight(1f).testTag("tab_animation_mode"))
+            ModeSegment("Chat", { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp)) }, agentMode == AgentMode.CHAT, { viewModel.setAgentMode(AgentMode.CHAT) }, Modifier.weight(1f).testTag("tab_chat_mode"))
         }
 
         // Mode Content
@@ -176,7 +143,7 @@ fun AiAgentScreen(
                     onOrbClick = {
                         when (visualState) {
                             AssistantVisualState.PAUSED -> viewModel.resumeVoiceInteraction()
-                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.pauseVoiceInteraction()
+                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING -> viewModel.stopVoiceInteraction()
                             else -> viewModel.startVoiceInteraction()
                         }
                     },
@@ -196,7 +163,7 @@ fun AiAgentScreen(
                     onMicClick = {
                         when (visualState) {
                             AssistantVisualState.PAUSED -> viewModel.resumeVoiceInteraction()
-                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.pauseVoiceInteraction()
+                            AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> viewModel.stopVoiceInteraction()
                             else -> viewModel.startVoiceInteraction()
                         }
                     },
@@ -296,9 +263,9 @@ fun AnimationModeContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 18.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // Top Row: State badge + Install APK button
         Row(
@@ -343,26 +310,19 @@ fun AnimationModeContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 AnimatedOrb(
                     state = visualState,
-                    size = 230.dp,
+                    size = 224.dp,
                     audioLevel = audioLevel,
                     onClick = onOrbClick
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = assistantName,
                     color = SiaTextPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-
-                Text(
-                    text = "By FAST",
-                    color = SiaCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.3.sp
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -389,10 +349,10 @@ fun AnimationModeContent(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .border(1.dp, SiaBorder, RoundedCornerShape(16.dp))
+                        .padding(bottom = 4.dp)
+                        .border(1.dp, SiaBorder.copy(alpha = 0.52f), RoundedCornerShape(16.dp))
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(13.dp)) {
                         Text(
                             text = "$assistantName:",
                             color = SiaCyan,
@@ -411,61 +371,27 @@ fun AnimationModeContent(
             }
         }
 
-        // Quick action chips (Single & Multi-action examples)
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp)
-        ) {
-            val chips = listOf(
-                "📱 Install on Phone" to "install on phone",
-                "YouTube + Torch" to "Open YouTube and turn on the torch",
-                "Torch + Volume 50%" to "Torch on karo aur volume 50 kar do",
-                "Flashlight On" to "torch on",
-                "Open YouTube" to "open youtube",
-                "Remind in 5m" to "remind me in 5 minutes to take a break"
+        Text("TRY A QUICK ACTION", color = SiaTextMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(horizontal = 2.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            val actions = listOf(
+                Triple("Install app", "install on phone", Icons.Default.PhoneAndroid),
+                Triple("Open YouTube", "open youtube", Icons.Default.PlayArrow),
+                Triple("Flashlight", "torch on", Icons.Default.FlashOn),
+                Triple("Take a break", "remind me in 5 minutes to take a break", Icons.Default.NotificationsActive)
             )
-            items(chips) { (label, command) ->
-                SuggestionChip(
-                    onClick = { onQuickCommand(command) },
-                    label = { Text(label, color = SiaTextPrimary, fontSize = 12.sp) },
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = SiaSurfaceVariantDark
-                    ),
-                    border = SuggestionChipDefaults.suggestionChipBorder(
-                        enabled = true,
-                        borderColor = SiaBorder
-                    )
-                )
+            items(actions) { (label, command, actionIcon) ->
+                Card(onClick = { onQuickCommand(command) }, colors = CardDefaults.cardColors(containerColor = SiaSurfaceDark), shape = RoundedCornerShape(18.dp), modifier = Modifier.width(142.dp).border(1.dp, SiaBorder.copy(alpha = 0.9f), RoundedCornerShape(18.dp))) {
+                    Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(11.dp)).background(SiaCyan.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                            Icon(actionIcon, contentDescription = null, tint = SiaCyan, modifier = Modifier.size(18.dp))
+                        }
+                        Text(label, color = SiaTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    }
+                }
             }
         }
 
-        // Mic Action Button with distinct state colors
-        val micBgColor = when (visualState) {
-            AssistantVisualState.LISTENING -> SiaGreen
-            AssistantVisualState.PREPARING -> SiaAmber
-            else -> SiaCyan
-        }
-
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(micBgColor)
-                .clickable { onOrbClick() }
-                .testTag("orb_voice_button"),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (visualState == AssistantVisualState.LISTENING) Icons.Default.MicOff else Icons.Default.Mic,
-                contentDescription = "Voice Input",
-                tint = SiaBgDark,
-                modifier = Modifier.size(36.dp)
-            )
-        }
-
+        // The orb is the sole voice-entry control; keep the bottom area uncluttered.
         Spacer(modifier = Modifier.height(8.dp))
         val hintText = when (visualState) {
             AssistantVisualState.PREPARING -> "Preparing audio..."
@@ -473,7 +399,7 @@ fun AnimationModeContent(
             AssistantVisualState.THINKING -> "Thinking..."
             AssistantVisualState.EXECUTING -> "Executing actions..."
             AssistantVisualState.SPEAKING -> "Speaking response..."
-            else -> "Tap to speak in Hindi, Hinglish, or English"
+            else -> "Tap the orb to speak"
         }
         Text(
             text = hintText,
@@ -558,13 +484,13 @@ fun ChatModeContent(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Continuous Conversation Thread",
+                        text = "A little space for big ideas",
                         color = SiaTextPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Supports compound commands and Hindi / Hinglish voice.",
+                        text = "Ask anything, or tell SIA what you need.",
                         color = SiaTextSecondary,
                         fontSize = 13.sp
                     )
@@ -576,9 +502,9 @@ fun ChatModeContent(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
-                contentPadding = PaddingValues(vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 18.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 items(messages, key = { it.id }) { msg ->
                     ChatMessageItem(message = msg, onSpeak = { onSpeakMessage(msg.text) })
@@ -586,69 +512,34 @@ fun ChatModeContent(
             }
         }
 
-        // Bottom input row
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(SiaSurfaceDark)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth().background(SiaBgDark).padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
             val micColor = when (visualState) {
                 AssistantVisualState.LISTENING -> SiaGreen
                 AssistantVisualState.PREPARING -> SiaAmber
                 else -> SiaSurfaceVariantDark
             }
-            IconButton(
-                onClick = onMicClick,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(micColor)
-                    .testTag("chat_mic_button")
-            ) {
-                Icon(
-                    imageVector = if (visualState == AssistantVisualState.LISTENING) Icons.Default.MicOff else Icons.Default.Mic,
-                    contentDescription = "Voice Input",
-                    tint = if (visualState == AssistantVisualState.LISTENING) SiaBgDark else SiaCyan
-                )
+            IconButton(onClick = onMicClick, modifier = Modifier.padding(bottom = 3.dp).size(44.dp).clip(CircleShape).background(micColor.copy(alpha = 0.92f)).testTag("chat_mic_button")) {
+                Icon(imageVector = if (visualState == AssistantVisualState.LISTENING) Icons.Default.MicOff else Icons.Default.Mic, contentDescription = "Voice input", tint = if (visualState == AssistantVisualState.LISTENING) SiaBgDark else SiaCyan)
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
+            Spacer(modifier = Modifier.width(9.dp))
             OutlinedTextField(
-                value = inputText,
-                onValueChange = onInputTextChange,
-                placeholder = { Text("Ask SIA or command multiple actions...", color = SiaTextMuted, fontSize = 14.sp) },
+                value = inputText, onValueChange = onInputTextChange,
+                placeholder = { Text("Message SIA…", color = SiaTextMuted, fontSize = 15.sp) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = SiaCyan,
-                    unfocusedBorderColor = SiaBorder,
-                    focusedTextColor = SiaTextPrimary,
-                    unfocusedTextColor = SiaTextPrimary,
-                    focusedContainerColor = SiaCardBg,
-                    unfocusedContainerColor = SiaCardBg
+                    focusedBorderColor = SiaCyan.copy(alpha = 0.72f), unfocusedBorderColor = SiaBorder,
+                    focusedTextColor = SiaTextPrimary, unfocusedTextColor = SiaTextPrimary,
+                    focusedContainerColor = SiaSurfaceDark, unfocusedContainerColor = SiaSurfaceDark, cursorColor = SiaCyan
                 ),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("chat_input_field"),
-                maxLines = 3
+                shape = RoundedCornerShape(25.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp).testTag("chat_input_field"),
+                maxLines = 5
             )
-
             Spacer(modifier = Modifier.width(8.dp))
-
-            IconButton(
-                onClick = onSendMessage,
-                enabled = inputText.isNotBlank(),
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(if (inputText.isNotBlank()) SiaCyan else SiaSurfaceVariantDark)
-                    .testTag("chat_send_button")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = if (inputText.isNotBlank()) SiaBgDark else SiaTextMuted
-                )
+            IconButton(onClick = onSendMessage, enabled = inputText.isNotBlank(), modifier = Modifier.padding(bottom = 3.dp).size(48.dp).clip(CircleShape).background(if (inputText.isNotBlank()) SiaCyan else SiaSurfaceVariantDark).testTag("chat_send_button")) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send message", tint = if (inputText.isNotBlank()) SiaBgDark else SiaTextMuted)
             }
         }
     }
@@ -669,7 +560,7 @@ fun ChatMessageItem(
     ) {
         Card(
             colors = CardDefaults.cardColors(
-                containerColor = if (isUser) SiaViolet.copy(alpha = 0.25f) else SiaCardBg
+                containerColor = if (isUser) Color(0xFF35465D) else SiaSurfaceDark
             ),
             shape = RoundedCornerShape(
                 topStart = 16.dp,
@@ -681,7 +572,7 @@ fun ChatMessageItem(
                 .fillMaxWidth(0.85f)
                 .border(
                     width = 1.dp,
-                    color = if (isUser) SiaViolet.copy(alpha = 0.5f) else SiaBorder,
+                    color = if (isUser) SiaViolet.copy(alpha = 0.45f) else SiaBorder.copy(alpha = 0.75f),
                     shape = RoundedCornerShape(16.dp)
                 )
         ) {
@@ -720,12 +611,7 @@ fun ChatMessageItem(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Text(
-                    text = cleanText,
-                    color = SiaTextPrimary,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
+                MarkdownMessage(text = cleanText)
 
                 // Clean human-readable action badge without ANY raw JSON
                 if (!message.toolName.isNullOrBlank()) {
@@ -776,4 +662,88 @@ fun cleanUserFacingText(raw: String): String {
         .replace(Regex("""```(?:tool_calls|tools|json)?\s*\[.*?\]\s*```""", RegexOption.DOT_MATCHES_ALL), "")
         .replace(Regex("""\{\s*"tool"\s*:\s*.*\}""", RegexOption.DOT_MATCHES_ALL), "")
         .trim()
+}
+
+
+@Composable
+private fun MarkdownMessage(text: String) {
+    val lines = text.lines()
+    var inCode = false
+    val codeLines = mutableListOf<String>()
+    val fence = 96.toChar().toString().repeat(3)
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        lines.forEach { raw ->
+            val line = raw.trimEnd()
+            if (line.trimStart().startsWith(fence)) {
+                if (inCode) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF111D2B)), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text(codeLines.joinToString("\n"), color = Color(0xFFD7E8E4), fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(12.dp))
+                    }
+                    codeLines.clear()
+                    inCode = false
+                } else inCode = true
+            } else if (inCode) {
+                codeLines += line
+            } else if (line.isBlank()) {
+                Spacer(Modifier.height(2.dp))
+            } else {
+                val heading = Regex("""^#{1,3}\s+(.+)$""").find(line)
+                val bullet = Regex("""^\s*[-*+]\s+(.+)$""").find(line)
+                val numbered = Regex("""^\s*\d+[.)]\s+(.+)$""").find(line)
+                when {
+                    heading != null -> Text(heading.groupValues[1], color = SiaTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, lineHeight = 22.sp)
+                    bullet != null -> Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("•", color = SiaCyan, fontSize = 16.sp)
+                        InlineMarkdownText(bullet.groupValues[1])
+                    }
+                    numbered != null -> Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(numbered.groupValues[0].takeWhile { it.isDigit() || it == '.' || it == ')' }, color = SiaCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        InlineMarkdownText(numbered.groupValues[1])
+                    }
+                    line.trim().startsWith("|") && line.trim().endsWith("|") -> {
+                        val row = line.trim().trim('|').split('|').joinToString("   ·   ") { it.trim() }
+                        if (row.replace(":", "").replace("-", "").replace(" ", "").isNotEmpty()) Text(row, color = SiaTextSecondary, fontSize = 13.sp, lineHeight = 19.sp)
+                    }
+                    else -> InlineMarkdownText(line)
+                }
+            }
+        }
+        if (inCode && codeLines.isNotEmpty()) Text(codeLines.joinToString("\n"), color = SiaTextPrimary, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp)
+    }
+}
+
+@Composable
+private fun InlineMarkdownText(text: String) {
+    val tick = 96.toChar()
+    val pattern = Regex("""(\*\*.+?\*\*|${tick}[^${tick}]+${tick}|\*[^*]+\*|~~.+?~~)""")
+    val annotated = androidx.compose.ui.text.buildAnnotatedString {
+        var cursor = 0
+        pattern.findAll(text).forEach { match ->
+            append(text.substring(cursor, match.range.first))
+            val token = match.value
+            when {
+                token.startsWith("**") -> withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = SiaTextPrimary)) { append(token.removeSurrounding("**")) }
+                token.firstOrNull() == tick -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = SiaSurfaceVariantDark, color = SiaAmber)) { append(token.drop(1).dropLast(1)) }
+                token.startsWith("~~") -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = SiaTextSecondary)) { append(token.removeSurrounding("~~")) }
+                token.startsWith("*") -> withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(token.removeSurrounding("*")) }
+            }
+            cursor = match.range.last + 1
+        }
+        append(text.substring(cursor))
+    }
+    Text(annotated, color = SiaTextPrimary, fontSize = 14.sp, lineHeight = 21.sp)
+}
+
+
+@Composable
+private fun ModeSegment(title: String, icon: @Composable () -> Unit, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.clip(RoundedCornerShape(17.dp)).background(if (selected) SiaCyan.copy(alpha = 0.16f) else Color.Transparent).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 11.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides if (selected) SiaCyan else SiaTextMuted) { icon() }
+        Spacer(Modifier.width(7.dp))
+        Text(title, color = if (selected) SiaCyan else SiaTextSecondary, fontSize = 13.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+    }
 }

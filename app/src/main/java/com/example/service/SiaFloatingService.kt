@@ -9,6 +9,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RadialGradient
+import android.graphics.Shader
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -16,10 +21,10 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
@@ -28,6 +33,10 @@ import com.example.R
 import com.example.permissions.SiaPermissionManager
 import com.example.preferences.SiaPreferences
 import com.example.provider.PromptContext
+import com.example.provider.PromptMessage
+import com.example.data.SiaDatabase
+import com.example.data.ConversationEntity
+import com.example.memory.MemoryManager
 import com.example.provider.ProviderFactory
 import com.example.speech.AssistantVisualState
 import com.example.speech.SiaSpeechManager
@@ -45,11 +54,13 @@ class SiaFloatingService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var windowManager: WindowManager? = null
     private var overlayRootView: View? = null
+    private var immersiveOverlayView: View? = null
+    private var isImmersiveOverlayAttached = false
     private var isOverlayAttached = false
 
     private var speechManager: SiaSpeechManager? = null
     private var statusTextView: TextView? = null
-    private var orbImageView: ImageView? = null
+    private var orbImageView: FloatingEnergyOrbView? = null
     private var micButton: FrameLayout? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -88,7 +99,7 @@ class SiaFloatingService : Service() {
         startForeground(NOTIFICATION_ID, buildForegroundNotification())
 
         if (action == ACTION_START_SIA_OVERLAY) {
-            showFloatingAssistantOverlay()
+            showImmersiveVoiceOverlay()
         }
 
         return START_STICKY
@@ -151,6 +162,124 @@ class SiaFloatingService : Service() {
     }
 
     @SuppressLint("ClickableViewAccessibility")
+    private fun showImmersiveVoiceOverlay() {
+        if (!SiaPermissionManager.hasOverlayPermission(this)) {
+            val launchIntent = Intent(this, MainActivity::class.java).apply {
+                action = "com.example.ACTION_START_SIA_VOICE"
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(launchIntent)
+            return
+        }
+        if (isImmersiveOverlayAttached) {
+            if (speechManager?.isSessionActive != true) speechManager?.startSession()
+            return
+        }
+        try {
+            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val density = resources.displayMetrics.density
+            val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            if (isOverlayAttached && overlayRootView != null) {
+                try { windowManager?.removeView(overlayRootView) } catch (_: Exception) {}
+                overlayRootView = null
+                isOverlayAttached = false
+            }
+            val root = FrameLayout(this).apply {
+                background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(
+                    Color.argb(218, 3, 7, 17), Color.argb(232, 4, 9, 21),
+                    Color.argb(244, 3, 7, 17), Color.argb(250, 2, 5, 13)
+                ))
+                isClickable = true
+                contentDescription = "SIA immersive voice mode. Tap anywhere to switch to the floating orb."
+            }
+            val content = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding((28 * density).toInt(), (30 * density).toInt(), (28 * density).toInt(), (34 * density).toInt())
+            }
+            // Dedicated near-black glass puck keeps the Nexus ring readable over any app wallpaper.
+            val orbDockSize = (190 * density).toInt()
+            val orbDock = FrameLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(orbDockSize, orbDockSize).apply {
+                    bottomMargin = (18 * density).toInt()
+                }
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor("#F7040918"))
+                    setStroke((1.2f * density).toInt(), Color.parseColor("#773A8DFF"))
+                }
+                elevation = 14 * density
+                foreground = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setStroke((1 * density).toInt(), Color.parseColor("#3337E8FF"))
+                }
+            }
+            val orb = FloatingEnergyOrbView(this).apply {
+                layoutParams = FrameLayout.LayoutParams((170 * density).toInt(), (170 * density).toInt(), Gravity.CENTER)
+                contentDescription = "SIA animated Nexus energy ring"
+            }
+            orbImageView = orb
+            orbDock.addView(orb)
+            content.addView(orbDock)
+            val title = TextView(this).apply {
+                text = SiaPreferences.getInstance(this@SiaFloatingService).getAssistantName()
+                setTextColor(Color.WHITE)
+                textSize = 23f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            content.addView(title)
+            val status = TextView(this).apply {
+                text = "Listening · speak naturally"
+                setTextColor(Color.parseColor("#B8D8DE"))
+                textSize = 15f
+                gravity = Gravity.CENTER
+                maxLines = 3
+                setPadding(0, (10 * density).toInt(), 0, (12 * density).toInt())
+            }
+            statusTextView = status
+            content.addView(status)
+            val hint = TextView(this).apply {
+                text = "Tap anywhere to switch to floating mode"
+                setTextColor(Color.parseColor("#8BA7B2"))
+                textSize = 12f
+                gravity = Gravity.CENTER
+            }
+            content.addView(hint)
+            val contentParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            ).apply { topMargin = (resources.displayMetrics.heightPixels * 0.16f).toInt() }
+            root.addView(content, contentParams)
+            root.setOnClickListener {
+                try { windowManager?.removeView(root) } catch (_: Exception) {}
+                immersiveOverlayView = null
+                isImmersiveOverlayAttached = false
+                showFloatingAssistantOverlay()
+            }
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            ).apply { gravity = Gravity.TOP or Gravity.START }
+            windowManager?.addView(root, params)
+            immersiveOverlayView = root
+            isImmersiveOverlayAttached = true
+            if (speechManager?.isSessionActive != true) {
+                Handler(Looper.getMainLooper()).postDelayed({ speechManager?.startSession() }, 250)
+            }
+        } catch (e: Exception) {
+            statusTextView?.text = "Voice overlay could not open: ${e.message ?: "unknown error"}"
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
     private fun showFloatingAssistantOverlay() {
         if (!SiaPermissionManager.hasOverlayPermission(this)) {
             // If overlay permission not granted, launch MainActivity with voice request
@@ -163,8 +292,11 @@ class SiaFloatingService : Service() {
         }
 
         if (isOverlayAttached) {
-            // Already showing, trigger voice listening
-            speechManager?.startListening()
+            // Do not reset/restart the recognizer when the notification is tapped again.
+            // Recreating Android's recognizer mid-playback can interrupt the active media session.
+            if (speechManager?.isSessionActive != true) {
+                speechManager?.startSession()
+            }
             return
         }
 
@@ -177,202 +309,212 @@ class SiaFloatingService : Service() {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
 
+            // Compact floating glass dock; it never dims or blocks the whole screen.
             val density = resources.displayMetrics.density
-
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                layoutType,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.CENTER
+            val orbSize = (58 * density).toInt()
+            val root = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding((10 * density).toInt(), (8 * density).toInt(), (10 * density).toInt(), (8 * density).toInt())
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = 42 * density
+                    setColor(Color.parseColor("#F0182935"))
+                    setStroke((1 * density).toInt(), Color.parseColor("#6677DCCB"))
+                }
+                elevation = 12 * density
             }
 
-            // Full-screen dimmed container
-            val root = FrameLayout(this).apply {
-                setBackgroundColor(Color.parseColor("#E6050914")) // 90% dimmed obsidian
-            }
-
-            // Top-right Close Button ('X')
-            val closeButton = FrameLayout(this).apply {
-                val btnSize = (48 * density).toInt()
-                val lp = FrameLayout.LayoutParams(btnSize, btnSize).apply {
-                    gravity = Gravity.TOP or Gravity.END
-                    topMargin = (40 * density).toInt()
-                    rightMargin = (24 * density).toInt()
-                }
-                layoutParams = lp
-
-                val circleBg = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#33FFFFFF"))
-                    setStroke((1 * density).toInt(), Color.parseColor("#6600E5FF"))
-                }
-                background = circleBg
-
-                val xText = TextView(this@SiaFloatingService).apply {
-                    text = "✕"
-                    setTextColor(Color.WHITE)
-                    textSize = 18f
-                    gravity = Gravity.CENTER
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                }
-                addView(xText)
-
-                setOnClickListener {
-                    removeFloatingOverlay()
-                }
-            }
-            root.addView(closeButton)
-
-            // Center Column with Animated Orb & Status
-            val centerColumn = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                val colLp = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.CENTER
-                }
-                layoutParams = colLp
-            }
-
-            // Glowing Orb
-            val orbSize = (180 * density).toInt()
-            val orb = ImageView(this).apply {
-                setImageResource(R.drawable.ic_launcher_foreground)
+            val orb = FloatingEnergyOrbView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(orbSize, orbSize)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#2200E5FF"), Color.TRANSPARENT)
-                }
-            }
-            orbImageView = orb
-            centerColumn.addView(orb)
-
-            // Assistant Title
-            val titleText = TextView(this).apply {
-                text = "SIA • By FAST"
-                setTextColor(Color.parseColor("#00E5FF"))
-                textSize = 14f
-                gravity = Gravity.CENTER
-                setPadding(0, (12 * density).toInt(), 0, (6 * density).toInt())
-            }
-            centerColumn.addView(titleText)
-
-            // Dynamic Status Text
-            val status = TextView(this).apply {
-                text = "Preparing microphone..."
-                setTextColor(Color.WHITE)
-                textSize = 16f
-                gravity = Gravity.CENTER
-                setPadding((16 * density).toInt(), 0, (16 * density).toInt(), (20 * density).toInt())
-            }
-            statusTextView = status
-            centerColumn.addView(status)
-
-            // Mic Toggle Button
-            val micSize = (64 * density).toInt()
-            val micContainer = FrameLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(micSize, micSize).apply {
-                    gravity = Gravity.CENTER_HORIZONTAL
-                }
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(Color.parseColor("#00E5FF"))
-                }
-                val micIcon = TextView(this@SiaFloatingService).apply {
-                    text = "🎤"
-                    textSize = 24f
-                    gravity = Gravity.CENTER
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                }
-                addView(micIcon)
-
+                contentDescription = "SIA floating assistant. Tap to start or pause voice."
                 setOnClickListener {
-                    val state = speechManager?.visualState?.value
-                    when (state) {
+                    when (speechManager?.visualState?.value) {
                         AssistantVisualState.PAUSED -> speechManager?.resumeSession()
-                        AssistantVisualState.LISTENING, AssistantVisualState.PREPARING, AssistantVisualState.SPEAKING -> speechManager?.pauseSession(notifyUser = true)
+                        AssistantVisualState.LISTENING,
+                        AssistantVisualState.PREPARING,
+                        AssistantVisualState.SPEAKING -> speechManager?.pauseSession(notifyUser = true)
                         else -> speechManager?.startSession()
                     }
                 }
             }
-            micButton = micContainer
-            centerColumn.addView(micContainer)
+            orbImageView = orb
+            root.addView(orb)
 
-            root.addView(centerColumn)
+            val textColumn = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = (10 * density).toInt()
+                    marginEnd = (6 * density).toInt()
+                }
+            }
+            val titleText = TextView(this).apply {
+                text = "SIA"
+                setTextColor(Color.parseColor("#DDFBF2"))
+                textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            textColumn.addView(titleText)
+
+            val status = TextView(this).apply {
+                text = "Tap orb to speak"
+                setTextColor(Color.parseColor("#A9C5CB"))
+                textSize = 11f
+                maxLines = 2
+                setPadding(0, (2 * density).toInt(), 0, 0)
+            }
+            statusTextView = status
+            textColumn.addView(status)
+            root.addView(textColumn)
+
+            val closeButton = TextView(this).apply {
+                text = "×"
+                textSize = 24f
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor("#C8E1E4"))
+                contentDescription = "Close floating assistant"
+                layoutParams = LinearLayout.LayoutParams((34 * density).toInt(), (42 * density).toInt())
+                setOnClickListener { removeFloatingOverlay() }
+            }
+            root.addView(closeButton)
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.END
+                x = (12 * density).toInt()
+                y = (180 * density).toInt()
+            }
+
+            // Drag from the status/title area to reposition; tapping the orb still works.
+            var downRawX = 0f
+            var downRawY = 0f
+            var startX = 0
+            var startY = 0
+            var dragged = false
+            textColumn.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        startX = params.x
+                        startY = params.y
+                        dragged = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = (event.rawX - downRawX).toInt()
+                        val dy = (event.rawY - downRawY).toInt()
+                        if (kotlin.math.abs(dx) > (5 * density).toInt() || kotlin.math.abs(dy) > (5 * density).toInt()) dragged = true
+                        if (dragged) {
+                            params.x = (startX - dx).coerceAtLeast(0)
+                            params.y = (startY + dy).coerceAtLeast(0)
+                            try { windowManager?.updateViewLayout(root, params) } catch (_: Exception) {}
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
+                    else -> false
+                }
+            }
 
             windowManager?.addView(root, params)
             overlayRootView = root
             isOverlayAttached = true
 
             // Automatically start voice session when overlay opens
-            Handler(Looper.getMainLooper()).postDelayed({
-                speechManager?.startSession()
-            }, 300)
+            if (speechManager?.isSessionActive != true) {
+                Handler(Looper.getMainLooper()).postDelayed({ speechManager?.startSession() }, 300)
+            }
 
         } catch (_: Exception) {}
     }
 
     private fun handleFloatingCommand(command: String) {
         statusTextView?.text = "Command: $command"
-        updateOrbVisualState(AssistantVisualState.EXECUTING)
+        updateOrbVisualState(AssistantVisualState.THINKING)
 
         serviceScope.launch(Dispatchers.IO) {
             val executor = AndroidActionExecutor(this@SiaFloatingService)
-            val resolution = ToolRegistry.resolveCommand(command)
-
-            if (resolution is ToolRegistry.CommandResolution.LocalActions) {
-                val executionResults = mutableListOf<Pair<com.example.provider.SingleToolCall, com.example.tools.ToolExecutionResult>>()
-                for (call in resolution.actions) {
-                    val res = executor.executeTool(call.toolName, call.toolParams)
-                    executionResults.add(call to res)
-                }
-
-                val failed = executionResults.filter { it.second.status != ToolResultStatus.SUCCESS }
-                if (failed.isEmpty()) {
-                    val confirmations = executionResults.map { it.second.message }
-                    val spoken = confirmations.joinToString(". ")
-                    launch(Dispatchers.Main) {
-                        statusTextView?.text = spoken
-                        speechManager?.speak(spoken)
-                        updateOrbVisualState(AssistantVisualState.SPEAKING)
-                    }
-                    return@launch
-                }
-            }
-
-            // Fallback to AI provider for complex tasks, conversation, or when local actions failed
-            val provider = ProviderFactory.createProvider(this@SiaFloatingService)
-            val promptContext = PromptContext(
-                systemPrompt = "You are SIA by FAST. Keep your response spoken, natural, concise (1-2 sentences), and friendly in Hindi/Hinglish or English based on user query.",
-                permanentMemory = "",
-                rollingSummary = "",
-                recentMessages = emptyList(),
-                currentUserMessage = command,
-                availableTools = ToolRegistry.getAllTools()
+            val preferences = SiaPreferences.getInstance(this@SiaFloatingService)
+            val memory = MemoryManager(this@SiaFloatingService)
+            val dao = SiaDatabase.getDatabase(this@SiaFloatingService).siaDao()
+            dao.insertMessage(
+                ConversationEntity(sender = "user", text = command, timestamp = System.currentTimeMillis())
             )
-            val res = provider.generateResponse(promptContext)
-            val spoken = if (res.isSuccess) {
-                val llmOutput = res.getOrThrow()
-                if (llmOutput.toolCalls.isNotEmpty()) {
-                    for (call in llmOutput.toolCalls) {
-                        executor.executeTool(call.toolName, call.toolParams)
+            val recentHistory = dao.getRecentMessages(11).reversed()
+                .dropLastWhile { it.sender == "user" && it.text == command }
+                .takeLast(10)
+                .map {
+                    PromptMessage(
+                        role = if (it.sender == "user") "user" else "assistant",
+                        content = it.text
+                    )
+                }
+            val systemPrompt = com.example.provider.SiaSystemPrompt.build(preferences.getAssistantName())
+
+            val initialContext = PromptContext(
+                systemPrompt = systemPrompt,
+                permanentMemory = memory.getPermanentMemoryText(),
+                rollingSummary = memory.getRollingSummaryText(),
+                recentMessages = recentHistory,
+                currentUserMessage = command,
+                availableTools = ToolRegistry.getAgentTools()
+            )
+
+            val first = ProviderFactory.createProvider(this@SiaFloatingService).generateResponse(initialContext)
+            if (first.isFailure) {
+                val userMessage = "AI provider request failed. Check the selected provider and API key in Settings, then try again."
+                launch(Dispatchers.Main) {
+                    statusTextView?.text = userMessage
+                    speechManager?.speak(userMessage)
+                    updateOrbVisualState(AssistantVisualState.ERROR)
+                }
+                return@launch
+            }
+
+            val outcome = com.example.tools.ToolExecutionCoordinator(
+                this@SiaFloatingService,
+                executor,
+                customToolHandler = { toolName, _ ->
+                    if (toolName == "stop_listening") {
+                        kotlinx.coroutines.withContext(Dispatchers.Main) { speechManager?.stopSession() }
+                        com.example.tools.ToolExecutionResult(ToolResultStatus.SUCCESS, "SIA voice listening stopped by user request.")
+                    } else {
+                        com.example.tools.ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "No handler is available for tool $toolName.")
                     }
                 }
-                llmOutput.textReply.ifEmpty { "Ho gaya." }
-            } else {
-                "Main yeh request process nahi kar paayi: ${res.exceptionOrNull()?.message}"
-            }
+            ).execute(
+                initialOutput = first.getOrThrow(),
+                planningContext = initialContext,
+                originalUserText = command
+            )
+            val executionResults = outcome.executionResults
+            val spoken = buildConciseSpokenResult(
+                executionResults.map { (action, result) -> Triple(action.toolName, result.status, result.message) },
+                outcome.roundLimitReached,
+                outcome.followUpFailed,
+                outcome.finalOutput.textReply
+            )
+
+            dao.insertMessage(
+                ConversationEntity(
+                    sender = "assistant",
+                    text = spoken,
+                    timestamp = System.currentTimeMillis(),
+                    toolName = executionResults.joinToString(", ") { it.first.toolName }.ifBlank { null },
+                    toolStatus = if (executionResults.isEmpty()) null else executionResults.joinToString(", ") { it.second.status.name },
+                    toolResult = executionResults.joinToString("; ") { "${it.first.toolName}: ${it.second.message}" }.ifBlank { null },
+                    isSpoken = true
+                )
+            )
+            memory.checkAndSummarizeIfNeeded()
+
             launch(Dispatchers.Main) {
                 statusTextView?.text = spoken
                 speechManager?.speak(spoken)
@@ -381,58 +523,79 @@ class SiaFloatingService : Service() {
         }
     }
 
-    private fun updateOrbVisualState(state: AssistantVisualState) {
-        val density = resources.displayMetrics.density
-        when (state) {
-            AssistantVisualState.PREPARING -> {
-                statusTextView?.text = "Preparing voice stream..."
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#44FFAB00"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.LISTENING -> {
-                statusTextView?.text = "Listening... Speak now"
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#4400E676"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.THINKING, AssistantVisualState.EXECUTING -> {
-                statusTextView?.text = "Executing action..."
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#447C4DFF"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.SPEAKING -> {
-                statusTextView?.text = "SIA Speaking..."
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#4400E5FF"), Color.TRANSPARENT)
-                }
-            }
-            AssistantVisualState.PAUSED -> {
-                val prefs = SiaPreferences.getInstance(this)
-                val wake = prefs.getWakeWordPhrase()
-                statusTextView?.text = "Paused. Say '$wake' or tap to resume"
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#44FFB300"), Color.TRANSPARENT)
-                }
-            }
-            else -> {
-                statusTextView?.text = "Tap 🎤 to speak"
-                orbImageView?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    colors = intArrayOf(Color.parseColor("#2200E5FF"), Color.TRANSPARENT)
-                }
-            }
+    private fun buildConciseSpokenResult(
+        results: List<Triple<String, ToolResultStatus, String>>,
+        roundLimitReached: Boolean,
+        followUpFailed: Boolean,
+        fallbackText: String
+    ): String {
+        val modelAnswer = fallbackText.trim()
+            .takeIf { it.isNotBlank() && !it.contains("tool_calls", ignoreCase = true) &&
+                !it.equals("Action execute ho gaya.", ignoreCase = true) &&
+                !it.equals("Action executed.", ignoreCase = true) &&
+                !it.equals("Kaam ho gaya.", ignoreCase = true) }
+        if (modelAnswer != null && !roundLimitReached && !followUpFailed) return modelAnswer.take(420)
+        if (results.isEmpty()) {
+            return modelAnswer?.take(420)
+                ?: "Bhai, main abhi iska result verify nahi kar paayi."
         }
+
+        val summaries = results.map { (tool, status, detail) ->
+            when {
+                status == ToolResultStatus.USER_CONFIRMATION_REQUIRED ->
+                    if (tool == "send_sms") "Message ready hai; bhejne se pehle tujhe Send dabana hoga."
+                    else "Is action ke liye teri confirmation chahiye."
+                status == ToolResultStatus.PERMISSION_REQUIRED -> "Is action ke liye permission chahiye."
+                status == ToolResultStatus.SUCCESS -> when (tool) {
+                    "play_music", "play" -> "Gaana chala diya."
+                    "pause" -> "Music pause kar diya."
+                    "stop" -> "Music band kar diya."
+                    "next" -> "Agla track chala diya."
+                    "previous" -> "Pichhla track chala diya."
+                    "open_app" -> "App kholne ki request bhej di."
+                    "toggle_torch" -> "Flashlight ka command execute ho gaya."
+                    "set_volume" -> "Volume change kar diya."
+                    "set_brightness" -> "Brightness change kar di."
+                    "web_search", "web_agent" -> "Search khol diya."
+                    else -> "${tool.replace("_", " ")} ka result mila, lekin final outcome verify nahi hua: ${detail.take(140)}"
+                }
+                else -> "${tool.replace("_", " ")} fail hua: ${detail.take(180)}"
+            }
+        }.distinct()
+
+        val text = summaries.joinToString(" ")
+        return when {
+            roundLimitReached -> "$text Baaki kaam poora verify nahi ho paaya."
+            followUpFailed -> "$text Baaki result verify nahi ho paaya."
+            else -> text
+        }
+    }
+
+    private fun updateOrbVisualState(state: AssistantVisualState) {
+        statusTextView?.text = when (state) {
+            AssistantVisualState.PREPARING -> "Preparing voice…"
+            AssistantVisualState.LISTENING -> "Listening · speak now"
+            AssistantVisualState.THINKING -> "Thinking…"
+            AssistantVisualState.EXECUTING -> "Working on it…"
+            AssistantVisualState.SPEAKING -> "SIA is speaking"
+            AssistantVisualState.PAUSED -> "Paused · tap orb to resume"
+            AssistantVisualState.ERROR -> "Voice error · tap to retry"
+            AssistantVisualState.IDLE -> "Tap orb to speak"
+        }
+        orbImageView?.setVisualState(state)
     }
 
     private fun removeFloatingOverlay() {
         speechManager?.stopSession()
+        if (isImmersiveOverlayAttached && immersiveOverlayView != null) {
+            try { windowManager?.removeView(immersiveOverlayView) } catch (_: Exception) {}
+            immersiveOverlayView = null; isImmersiveOverlayAttached = false
+        }
+        if (isImmersiveOverlayAttached && immersiveOverlayView != null) {
+            try { windowManager?.removeView(immersiveOverlayView) } catch (_: Exception) {}
+            immersiveOverlayView = null
+            isImmersiveOverlayAttached = false
+        }
 
         if (isOverlayAttached && overlayRootView != null) {
             try {

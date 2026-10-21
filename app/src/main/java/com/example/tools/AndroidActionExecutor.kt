@@ -14,6 +14,7 @@ import android.os.Build
 import android.provider.Settings
 import android.view.KeyEvent
 import com.example.data.ScheduledTaskEntity
+import com.example.memory.MemoryManager
 import com.example.data.SiaDatabase
 import com.example.permissions.SiaPermissionManager
 import com.example.scheduler.ScheduledTaskReceiver
@@ -29,6 +30,7 @@ import java.util.UUID
 class AndroidActionExecutor(private val context: Context) {
 
     private val db = SiaDatabase.getDatabase(context)
+    private val memoryManager = MemoryManager(context)
     private var isTorchOn = false
     private val webSearchAgent = WebSearchAgent(context)
     private val contactAgent = ContactAgent(context)
@@ -38,16 +40,37 @@ class AndroidActionExecutor(private val context: Context) {
     suspend fun executeTool(name: String, params: Map<String, String>): ToolExecutionResult {
         return withContext(Dispatchers.IO) {
             when (name) {
+                // Individual LLM-facing tools delegate to existing Android implementations.
+                "toggle_torch" -> handleToggleTorch(params["state"] ?: "toggle")
+                "set_brightness" -> handleSetBrightness(params["level"]?.toIntOrNull() ?: 50)
+                "set_volume" -> handleSetVolume(params["level"]?.toIntOrNull() ?: 50)
+                "toggle_wifi" -> handleDeviceAgent(mapOf("action" to "wifi_${params["state"]?.lowercase(Locale.ROOT) ?: "on"}"))
+                "toggle_bluetooth" -> handleDeviceAgent(mapOf("action" to "bluetooth_${params["state"]?.lowercase(Locale.ROOT) ?: "on"}"))
+                "toggle_mobile_data" -> handleDeviceAgent(mapOf("action" to "mobile_data_${params["state"]?.lowercase(Locale.ROOT) ?: "on"}"))
+                "open_app" -> handleOpenApp(params["app_name"] ?: "")
+                "close_app" -> handleAppAgent(mapOf("action" to "close"))
+                "open_camera" -> handleOpenApp("Camera")
+                "vibrate" -> handleVibrate(params["duration_ms"]?.toLongOrNull() ?: 250L)
+                "send_sms" -> handleSendSms(params["number"] ?: "", params["message"] ?: "")
+                "user_perma_memory" -> handlePermanentMemory(params)
+                "call" -> {
+                    val target = params["name"]?.trim().orEmpty()
+                    if (target.any(Char::isLetter)) contactAgent.callContact(target)
+                    else contactAgent.callSpecificNumber(target)
+                }
+                "list_music" -> localMusicPlayer.listTracks(params["query"] ?: "")
+                "play_music" -> handleMediaAgent(mapOf("action" to "play", "query" to (params["query"] ?: "")))
+                // Route controls through the shared media-session/local-player path. The old
+                // global media-key path reported success even when it could not reach SIA's
+                // own MediaPlayer, which made local music impossible to stop reliably.
+                "play", "pause", "stop", "next", "previous" -> handleMediaAgent(mapOf("action" to name))
                 "device_agent" -> handleDeviceAgent(params)
                 "app_agent" -> handleAppAgent(params)
-                "contact_agent" -> contactAgent.callContact(params["name"] ?: "")
+                "contact_agent" -> if (params["action"] == "call_number") contactAgent.callSpecificNumber(params["number"] ?: "") else contactAgent.callContact(params["name"] ?: "")
                 "web_agent", "web_search" -> webSearchAgent.search(params["query"] ?: "")
                 "media_agent" -> handleMediaAgent(params)
                 "reminder_agent" -> handleReminderAgent(params)
-                "open_app" -> handleOpenApp(params["app_name"] ?: "")
-                "toggle_torch" -> handleToggleTorch(params["state"] ?: "toggle")
                 "control_media" -> handleControlMedia(params["action"] ?: "play_pause")
-                "set_volume" -> handleSetVolume(params["level"]?.toIntOrNull() ?: 50)
                 "open_system_settings" -> handleOpenSettings(params["type"] ?: "general")
                 "create_reminder", "schedule_task" -> handleScheduleTask(params)
                 "get_task_status" -> handleGetTaskStatus(params["task_id"])
@@ -67,6 +90,67 @@ class AndroidActionExecutor(private val context: Context) {
         }
     }
 
+    private fun handleVibrate(durationMs: Long): ToolExecutionResult {
+        val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            ?: return ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Vibration hardware is unavailable.")
+        val duration = durationMs.coerceIn(1L, 5000L)
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createOneShot(duration, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(duration)
+            }
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Phone vibrated for $duration ms.")
+        } catch (e: Exception) {
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not vibrate the phone: ${e.message ?: "unknown error"}")
+        }
+    }
+
+    private fun handleSendSms(number: String, message: String): ToolExecutionResult {
+        val recipient = number.trim()
+        val body = message.trim()
+        if (recipient.isBlank() || body.isBlank()) {
+            return ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Both recipient number and SMS message are required.")
+        }
+        return try {
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(recipient)}")).apply {
+                putExtra("sms_body", body)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            ToolExecutionResult(
+                ToolResultStatus.USER_CONFIRMATION_REQUIRED,
+                "SMS composer opened for $recipient. The message has NOT been sent; the user must review it and tap Send."
+            )
+        } catch (e: Exception) {
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not open the SMS composer: ${e.message ?: "unknown error"}")
+        }
+    }
+
+    private suspend fun handlePermanentMemory(params: Map<String, String>): ToolExecutionResult {
+        return when (params["action"]?.lowercase(Locale.ROOT)) {
+            "save" -> {
+                val key = params["key"]?.trim().orEmpty()
+                val value = params["value"]?.trim().orEmpty()
+                if (key.isBlank() || value.isBlank()) {
+                    ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Saving a memory requires both key and value.")
+                } else {
+                    memoryManager.addPermanentMemory(key, value)
+                    ToolExecutionResult(ToolResultStatus.SUCCESS, "Saved permanent memory for '$key'.")
+                }
+            }
+            "list" -> {
+                val memories = memoryManager.getPermanentMemoryText()
+                ToolExecutionResult(
+                    ToolResultStatus.SUCCESS,
+                    if (memories.isBlank()) "No permanent memories are saved." else memories
+                )
+            }
+            else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "Use user_perma_memory with action save or list.")
+        }
+    }
+
     private fun handleDeviceAgent(params: Map<String, String>): ToolExecutionResult {
         val rawAction = params["action"]?.lowercase(Locale.ROOT).orEmpty()
         val action = rawAction.removeSuffix("_on").removeSuffix("_off")
@@ -78,18 +162,18 @@ class AndroidActionExecutor(private val context: Context) {
         return when (action) {
             "torch", "flashlight" -> handleToggleTorch(state.ifBlank { "toggle" })
             "volume", "set_volume" -> handleSetVolume(params["level"]?.toIntOrNull() ?: 50)
-            "wifi", "bluetooth", "mobile_data", "data", "hotspot", "brightness" -> {
+            "brightness", "set_brightness" -> handleSetBrightness(params["level"]?.toIntOrNull() ?: if (state == "max" || state == "full") 100 else 50)
+            "wifi", "bluetooth", "mobile_data", "data", "hotspot" -> {
                 val setting = when (action) {
                     "wifi" -> "wifi"
                     "bluetooth" -> "bluetooth"
                     "hotspot" -> "hotspot"
-                    "mobile_data", "data" -> "mobile_data"
-                    else -> "display"
+                    else -> "mobile_data"
                 }
                 val result = handleOpenSettings(setting)
                 if (result.status == ToolResultStatus.SUCCESS) ToolExecutionResult(
                     ToolResultStatus.USER_CONFIRMATION_REQUIRED,
-                    "Android opened the $setting settings screen. The user must complete this change there; do not claim the setting was toggled."
+                    "Android opened the $setting settings screen. This Android version restricts direct toggling by ordinary apps, so SIA cannot claim it changed the switch."
                 ) else result
             }
             else -> ToolExecutionResult(ToolResultStatus.UNSUPPORTED, "This device action is not supported.")
@@ -113,6 +197,18 @@ class AndroidActionExecutor(private val context: Context) {
 
     private fun handleMediaAgent(params: Map<String, String>): ToolExecutionResult {
         val action = params["action"]?.lowercase(Locale.ROOT).orEmpty()
+        val query = params["query"]?.trim().orEmpty()
+        if (action == "play" && query.isBlank()) {
+            // A requested song title must be present before starting playback. Otherwise the
+            // active media session may resume an unrelated track and falsely satisfy the request.
+            return ToolExecutionResult(
+                ToolResultStatus.PERMANENT_ERROR,
+                "A specific song query is required to play a named track. No track was started."
+            )
+        }
+        if (action in setOf("play", "resume") && query.isNotBlank()) {
+            return localMusicPlayer.control("play", query)
+        }
         val sessionAction = if (action == "control_existing") params["media_action"] ?: "play_pause" else action
         val sessionResult = mediaSessionAgent.control(sessionAction)
         if (sessionResult?.status == ToolResultStatus.SUCCESS) return sessionResult
@@ -194,9 +290,16 @@ class AndroidActionExecutor(private val context: Context) {
                     status = ToolResultStatus.PERMANENT_ERROR,
                     message = "The app '$matchedLabel' is installed but doesn't provide a launch screen."
                 )
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            launchIntent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+            )
             context.startActivity(launchIntent)
-            ToolExecutionResult(ToolResultStatus.SUCCESS, "Opening $matchedLabel.")
+            // startActivity returning only confirms Android accepted the launch request;
+            // the OS may still keep an overlay/service in front. Avoid claiming that the
+            // target is definitely visible to the user.
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Sent Android a launch request for $matchedLabel.")
         } catch (e: Exception) {
             ToolExecutionResult(
                 status = ToolResultStatus.PERMANENT_ERROR,
@@ -292,6 +395,21 @@ class AndroidActionExecutor(private val context: Context) {
             status = ToolResultStatus.SUCCESS,
             message = "Media control '$action' sent."
         )
+    }
+
+    private fun handleSetBrightness(level: Int): ToolExecutionResult {
+        val percent = level.coerceIn(0, 100)
+        return try {
+            if (!Settings.System.canWrite(context)) {
+                context.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return ToolExecutionResult(ToolResultStatus.PERMISSION_REQUIRED, "BRIGHTNESS_PERMISSION_REQUIRED: Allow SIA to modify system settings, then repeat the brightness command.")
+            }
+            val value = (percent * 255 / 100).coerceIn(1, 255)
+            Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, value)
+            ToolExecutionResult(ToolResultStatus.SUCCESS, "Screen brightness set to $percent percent.")
+        } catch (_: Exception) {
+            ToolExecutionResult(ToolResultStatus.PERMANENT_ERROR, "Could not change screen brightness. Check SIA's Modify System Settings permission.")
+        }
     }
 
     private fun handleSetVolume(levelPercent: Int): ToolExecutionResult {
